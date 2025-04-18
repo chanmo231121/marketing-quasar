@@ -39,6 +39,10 @@
               <q-select
                 v-model="filterStatus"
                 :options="statusFilterOptions"
+                emit-value
+                option-label="label"
+                option-value="value"
+                :display-value="filterStatus ? statusMap[filterStatus] : ''"
                 label="🗂 상태 필터"
                 dense
                 outlined
@@ -475,19 +479,28 @@ const filterStatus = ref(null)
 
 // 상태 매핑 & 필터 옵션
 const statusMap = {
+  PENDING_ALL:      '승인 대기',
   NORMAL: '정상',
   WITHDRAWAL: '탈퇴',
   PENDING_APPROVAL: '승인 대기',
   REJECTED: '거절됨',
-  PENDING_REAPPROVAL: '재승인 대기',
+  PENDING_REAPPROVAL: '승인 대기',
   WAITING: '대기중'
 }
 
 const statusFilterOptions = [
-  { label: '정상', value: 'NORMAL' },
-  { label: '승인 대기', value: 'PENDING_APPROVAL' },
-  { label: '거절됨', value: 'REJECTED' }
+  { label: '승인 대기', value: 'PENDING_ALL' },
+  { label: '정상',       value: 'NORMAL' },
+  { label: '거절',       value: 'REJECTED' }
 ]
+
+// --- 2) 각 value에 매핑될 실제 상태 배열 추가
+const statusFilterMap = {
+  PENDING_ALL:      ['PENDING_APPROVAL', 'PENDING_REAPPROVAL'],
+  NORMAL:           ['NORMAL'],
+  REJECTED:         ['REJECTED']
+}
+
 
 // 페이지네이션
 const paginationUsers = ref({ page: 1, rowsPerPage: 30 })
@@ -522,28 +535,49 @@ const columns = [
 // 전체 유저
 const allUsers = ref([])
 
-// 필터링 (검색 + 상태)
+// 필터링 (검색 + 상태) — 프로 유저
 const filteredPros = computed(() => {
   return allUsers.value
-    .filter(u => u.originalRole === 'PRO' || u.role === 'PRO')
-    .filter(u => u.status !== 'WAITING')         // ← 이 줄 추가
+    // 역할이 PRO인 유저만
+    .filter(u => u.role === 'PRO')
+    // 대기중(가입 전) 상태는 제외
+    .filter(u => u.status !== 'WAITING')
+    // 이름 검색
     .filter(u => {
       const name = searchName.value.trim().toLowerCase()
-      const matchesName = !name || u.name?.toLowerCase().includes(name)
-      const matchesStatus = !filterStatus.value || u.status === filterStatus.value.value
-      return matchesName && matchesStatus
+      return !name || u.name.toLowerCase().includes(name)
+    })
+    // 상태 필터
+    .filter(u => {
+      if (!filterStatus.value) {
+        // 아무것도 선택 안 하면 모두 통과
+        return true
+      }
+      // 선택된 필터값에 매핑된 실제 상태 배열 가져오기
+      const allowed = statusFilterMap[filterStatus.value] || []
+      return allowed.includes(u.status)
     })
 })
 
+// 필터링 (검색 + 상태) — 관리자 유저
 const filteredAdmins = computed(() => {
   return allUsers.value
-    .filter(u => u.originalRole === 'ADMIN' || u.role === 'ADMIN')
-    .filter(u => u.status !== 'WAITING')         // ← 이 줄 추가
+    // 역할이 ADMIN인 유저만
+    .filter(u => u.role === 'ADMIN')
+    // 대기중(가입 전) 상태는 제외
+    .filter(u => u.status !== 'WAITING')
+    // 이름 검색
     .filter(u => {
       const name = searchName.value.trim().toLowerCase()
-      const matchesName = !name || u.name?.toLowerCase().includes(name)
-      const matchesStatus = !filterStatus.value || u.status === filterStatus.value.value
-      return matchesName && matchesStatus
+      return !name || u.name.toLowerCase().includes(name)
+    })
+    // 상태 필터
+    .filter(u => {
+      if (!filterStatus.value) {
+        return true
+      }
+      const allowed = statusFilterMap[filterStatus.value] || []
+      return allowed.includes(u.status)
     })
 })
 
