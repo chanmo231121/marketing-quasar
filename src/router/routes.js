@@ -10,7 +10,7 @@ const routes = [
       { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
       { path: 'page3', component: () => import('pages/KeywordMix.vue') },
       { path: 'page4', component: () => import('pages/KeywordRanking.vue') },
-      { path: 'page5', component: () => import('pages/keyword3Search.vue') },
+      { path: 'page5', component: () => import('pages/Keyword3Search.vue') },
       { path: 'notices', component: () => import('pages/NoticesPage.vue') },
       { path: 'login', component: () => import('pages/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/SignupPage.vue') },
@@ -25,8 +25,8 @@ const routes = [
       { path: '', component: () => import('pages/KeywordSearch.vue') },
       { path: 'page1', component: () => import('pages/KeywordSearch.vue') },
       { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
-      { path: 'page3', component: () => import('pages/keywordMix.vue') },
-      { path: 'page4', component: () => import('pages/keywordRanking.vue') },
+      { path: 'page3', component: () => import('pages/KeywordMix.vue') },
+      { path: 'page4', component: () => import('pages/KeywordRanking.vue') },
       { path: 'notices', component: () => import('pages/NoticesPage.vue') }
     ]
   },
