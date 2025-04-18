@@ -237,39 +237,21 @@
               </template>
               <template v-slot:body-cell-actions="props">
                 <q-td :props="props" class="actions-cell">
-                  <!-- 승인 -->
+                  <!-- ✅ 역할이 변경된 경우에만 승인 버튼 표시 -->
                   <q-btn
                     flat round dense icon="check_circle" color="primary"
-                    v-if="['PENDING_APPROVAL','PENDING_REAPPROVAL','REJECTED'].includes(props.row.status)"
+                    v-if="props.row.editableRole !== props.row.originalRole"
                     @click="approveAdmin(props.row.id)"
                   >
                     <q-tooltip>승인</q-tooltip>
                   </q-btn>
 
-                  <!-- 거절 -->
-                  <q-btn
-                    flat round dense icon="block" color="negative"
-                    v-if="props.row.status !== 'NORMAL'"
-                    @click="rejectAdmin(props.row.id)"
-                  >
-                    <q-tooltip>거절</q-tooltip>
-                  </q-btn>
-
-                  <!-- 삭제 -->
+                  <!-- ✅ 삭제 버튼은 항상 표시 -->
                   <q-btn
                     flat round dense icon="delete" color="negative"
                     @click="deleteAdmin(props.row.id)"
                   >
                     <q-tooltip>삭제</q-tooltip>
-                  </q-btn>
-
-                  <!-- 만료 -->
-                  <q-btn
-                    flat round dense icon="hourglass_empty" color="warning"
-                    v-if="props.row.status === 'NORMAL'"
-                    @click="expireAdmin(props.row.id)"
-                  >
-                    <q-tooltip>만료</q-tooltip>
                   </q-btn>
                 </q-td>
               </template>
@@ -696,22 +678,26 @@ function deleteUser(userId) {
 // 승인/거절/삭제 (관리자)
 async function approveAdmin(userId) {
   const user = allUsers.value.find(u => u.id === userId)
-  await api.put(`/api/v1/admin/admins/approve/${userId}`, { role: user.editableRole || user.role })
+  const newRole = user.editableRole || user.role
+
+
+  // ✅ ADMIN → PRO 강등 시 만료일 7일 설정
+  const payload = { role: newRole }
+  if (user.originalRole === 'ADMIN' && newRole === 'PRO') {
+    const now = new Date()
+    now.setDate(now.getDate() + 7)
+    const expireDate = now.toISOString().split('T')[0]
+    payload.approvedUntil = expireDate + 'T00:00:00'
+    payload.autoExtend = false
+  }
+
+  await api.put(`/api/v1/admin/admins/approve/${userId}`, payload)
   await fetchAllUsers()
-  $q.dialog({ title: '✅ 승인 완료', message: '관리자가 승인되었습니다.' })
+  $q.dialog({ title: '✅ 승인 완료', message: '관리자 역할이 업데이트되었습니다.' })
 }
-function rejectAdmin(userId) {
-  $q.dialog({
-    title: '거절 사유 입력',
-    message: '이 관리자를 왜 거절하시나요?',
-    prompt: { model: '', type: 'text', isValid: v => v.length > 0 },
-    cancel: true
-  }).onOk(async reason => {
-    await api.put(`/api/v1/admin/admins/reject/${userId}`, { reason })
-    await fetchAllUsers()
-    $q.dialog({ title: '❌ 거절 완료', message: '관리자가 거절되었습니다.' })
-  })
-}
+
+
+
 function deleteAdmin(userId) {
   $q.dialog({
     title: '삭제 확인',
@@ -731,11 +717,7 @@ async function expireUser(userId) {
   await fetchAllUsers()
   $q.dialog({ title: '✅ 만료 완료', message: '유저 계정이 만료되었습니다.' })
 }
-async function expireAdmin(userId) {
-  await api.put(`/api/v1/admin/admins/expire/${userId}`)
-  await fetchAllUsers()
-  $q.dialog({ title: '✅ 만료 완료', message: '관리자 계정이 만료되었습니다.' })
-}
+
 
 // 상세정보 & 로그
 function mapLogResponse(data) {
