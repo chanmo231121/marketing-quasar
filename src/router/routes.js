@@ -1,15 +1,33 @@
+// src/router/routes.js
+
 const routes = [
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
     children: [
-      // 기본 경로에 KeywordSearch.vue가 표시되도록 변경
       { path: '', component: () => import('pages/KeywordSearch.vue') },
-      // 필요하다면 /page1도 동일하게 KeywordSearch.vue로 지정하거나 삭제
       { path: 'page1', component: () => import('pages/KeywordSearch.vue') },
       { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
       { path: 'page3', component: () => import('pages/keywordMix.vue') },
-      { path: 'page4', component: () => import('pages/keywordRanking.vue') }
+      { path: 'page4', component: () => import('pages/keywordRanking.vue') },
+      { path: 'page5', component: () => import('pages/keyword3Search.vue') },
+      { path: 'notices', component: () => import('pages/NoticesPage.vue') },
+      { path: 'login', component: () => import('pages/LoginPage.vue') },
+      { path: 'signup', component: () => import('pages/SignupPage.vue') },
+      { path: 'profile', component: () => import('pages/ProfileEditPage.vue') },
+      { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') }
+    ]
+  },
+  {
+    path: '/m',
+    component: () => import('layouts/MobileMainLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/KeywordSearch.vue') },
+      { path: 'page1', component: () => import('pages/KeywordSearch.vue') },
+      { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
+      { path: 'page3', component: () => import('pages/keywordMix.vue') },
+      { path: 'page4', component: () => import('pages/keywordRanking.vue') },
+      { path: 'notices', component: () => import('pages/NoticesPage.vue') }
     ]
   },
   {

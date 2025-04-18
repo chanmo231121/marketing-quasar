@@ -1,68 +1,63 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>최진우 병신 - 키워드 검색량 조회기</strong></h6>
-      <p>키워드의 조회수를 확인 할 수 있는 키워드 검색량 조회기입니다.</p>
-      <p>니똥고 망고똥고.</p>
+      <h6><strong>Maglo - 키워드 랭킹순위</strong></h6>
+      <p>키워드의 랭킹순위를 보수 있는 키워드 랭킹순위입니다.</p>
+      <p>한 줄에 하나씩 키워드를 입력하고 아래 키워드를 클릭해주세요.</p>
     </div>
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
-          <textarea
-            v-model="keywordInput"
-            placeholder="키워드를 한 줄에 하나씩 입력하세요"
-            rows="4"
-          ></textarea>
+          <textarea v-model="keywordInput" placeholder="키워드를 입력하세요(100개 까지)" rows="4"></textarea>
           <div class="button-group">
-            <button @click="processKeywords" :disabled="loading">
-              {{ loading ? '불러오는 중...' : '검색' }}
+            <button
+              @click="processKeywords"
+              :disabled="loading || keywordInput.trim() === ''"
+              class="primary-btn dense-btn"
+            >
+              {{ loading ? `불러오는 중 ${currentProgress}/${totalKeywords}` : '검색' }}
             </button>
-            <button class="reset-keyword-button" @click="resetAll" :disabled="loading || keywordInput === ''">
+            <button class="negative-btn dense-btn" @click="resetAll" :disabled="loading || keywordInput === ''">
               키워드 초기화
             </button>
           </div>
         </div>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
-
       <div class="keyword_list">
-        <!-- 버튼 컨테이너 추가 -->
         <div class="button-container">
-          <button @click="downloadExcel" class="excel-download-button">엑셀로 다운로드</button>
-          <button class="reset-button" @click="clearSearchResults" :disabled="loading || adsData.length === 0">
+          <button @click="downloadExcel" class="secondary-btn dense-btn excel-download-small-btn">
+            엘셀 다운로드(CSV)
+          </button>
+          <button class="negative-btn dense-btn" @click="clearSearchResults" :disabled="loading || Object.keys(adsData).length === 0">
             검색 초기화
           </button>
         </div>
 
-        <div v-if="keywords.length > 0">
-          <div class="keyword-excel-container">
-            <div class="keyword-list">
-              <button
-                v-for="(keyword, index) in keywords"
-                :key="index"
-                @click="getNaverAdsData(keyword)"
-              >
-                {{ keyword }}
-              </button>
-            </div>
-          </div>
+        <div class="keyword-list-container" v-if="keywords.length > 0">
+          <button
+            v-for="(keyword, index) in keywords"
+            :key="index"
+            @click="getNaverAdsData(keyword)"
+            :class="{ active: keyword === selectedKeyword }"
+          >
+            {{ keyword }}
+          </button>
         </div>
+
         <div class="table-container">
           <table>
             <thead>
             <tr>
-              <th rowspan="2" class="rank-header">
-                순위
-              </th>
+              <th rowspan="2">순위</th>
               <th colspan="3">PC</th>
               <th colspan="3">MO</th>
             </tr>
             <tr>
-              <th>판매자</th>
+              <th>파매자</th>
               <th>제목</th>
               <th>URL</th>
-              <th>판매자</th>
+              <th>파매자</th>
               <th>제목</th>
               <th>URL</th>
             </tr>
@@ -79,8 +74,7 @@
               <td>{{ row.mobile.SellerName || '-' }}</td>
               <td>{{ row.mobile.Subtitle || '-' }}</td>
               <td class="url-column">
-                <a v-if="row.mobile['Main URL']" :href="row.mobile['Main URL']"
-                   target="_blank">{{ row.mobile['Main URL'] }}</a>
+                <a v-if="row.mobile['Main URL']" :href="row.mobile['Main URL']" target="_blank">{{ row.mobile['Main URL'] }}</a>
                 <span v-else>-</span>
               </td>
             </tr>
@@ -96,130 +90,173 @@
 </template>
 
 <script>
-import axios from 'axios';
-import * as XLSX from 'xlsx'; // xlsx 라이브러리 임포트
+import { Dialog } from 'quasar';
+import { api } from 'boot/axios.js';
+import * as XLSX from 'xlsx';
 
 export default {
   data() {
     return {
-      keywordInput: '', // 키워드 입력값
-      keywords: [], // 처리된 키워드 목록
-      adsData: [],  // 전체 광고 데이터
-      pcAdsData: [], // PC 광고 데이터
-      mobileAdsData: [], // 모바일 광고 데이터
-      combinedTableData: [], // PC와 모바일 데이터를 합친 테이블 데이터
-      loading: false, // 데이터 로딩 상태
-      error: '', // 에러 메시지
+      keywordInput: '',
+      keywords: [],
+      adsData: {},
+      pcAdsData: [],
+      mobileAdsData: [],
+      combinedTableData: [],
+      loading: false,
+      error: '',
+      selectedKeyword: null,
+      currentProgress: 0,
+      totalKeywords: 0
     };
   },
   methods: {
-    // 키워드 처리 함수
-    processKeywords() {
-      this.keywords = this.keywordInput
-        .split('\n') // 줄바꿈으로 분리
-        .map((line) => line.trim()) // 공백 제거
-        .filter((line) => line.length > 0); // 빈 줄 제거
-    },
+    async processKeywords() {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        this.showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏');
+        return;
+      }
 
-    // 네이버 광고 데이터 가져오기
-    async getNaverAdsData(keyword) {
+      const processedKeywords = this.keywordInput
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      if (processedKeywords.length > 100) {
+        this.showDialog('⚠️ 키워드는 최대 100개까지 입력 가능합니다.');
+        return;
+      }
+
+      this.keywords = processedKeywords;
+      this.adsData = {};
       this.loading = true;
+      this.currentProgress = 0;
+      this.totalKeywords = processedKeywords.length;
+
       try {
-        const response = await axios.get('http://localhost:8080/api/naver-ads/search', {
+        const response = await api.get('/api/naver-ads/search', {
           params: {
-            keywords: keyword
+            keywords: encodeURIComponent(processedKeywords.join('\n'))
           }
         });
-        console.log(response.data); // 데이터 확인용
-        this.adsData = response.data; // 받아온 광고 데이터를 저장
 
-        // PC와 모바일 데이터 분리
-        this.pcAdsData = this.adsData.filter(ad => ad.Platform === 'PC');
-        this.mobileAdsData = this.adsData.filter(ad => ad.Platform === 'Mobile');
+        // 백엔드에서 approvalMessage가 포함되어 있을 경우, 해당 메시지를 표시하고 검색 결과를 초기화합니다.
+        if (response.data?.approvalMessage) {
+          this.showDialog(response.data.approvalMessage);
+          this.adsData = {};
+          return;
+        }
 
-        // PC와 모바일 데이터를 하나의 테이블로 통합
-        this.combineTableData();
-      } catch (error) {
-        console.error('데이터를 가져오는 중 오류 발생:', error);
-        this.error = '데이터를 가져오는 중 오류가 발생했습니다.';
+        const grouped = {};
+        for (const ad of response.data) {
+          if (!grouped[ad.Keyword]) grouped[ad.Keyword] = [];
+          grouped[ad.Keyword].push(ad);
+        }
+        this.adsData = grouped;
+
+        const allEmpty = Object.values(this.adsData).every(arr => arr.length === 0);
+        if (!allEmpty) {
+          this.showDialog('✅ 모든 키워드 데이터를 가져왔습니다.');
+        }
+      } catch (err) {
+        if (err.response?.status === 401) {
+          // 토큰 만료 등 별도 처리는 axios에서 자동 refresh 시키므로 안내 생략
+          return;
+        }
+
+        let errorMsg = '❌ 키워드 랭킹 조회 실패. 다시 시도해주세요.';
+        if (err.response?.data?.message) {
+          errorMsg = ` ${err.response.data.message}`;
+        } else if (err.response?.data?.error) {
+          errorMsg = ` ${err.response.data.error}`;
+        } else if (err.message) {
+          errorMsg = ` ${err.message}`;
+        }
+
+        this.showDialog(errorMsg);
+        console.error('❌ 랭킹 조회 에러:', err);
       } finally {
         this.loading = false;
       }
     },
 
-    // PC와 모바일 데이터를 하나의 테이블로 통합하는 함수
-    combineTableData() {
-      const maxLength = Math.max(this.pcAdsData.length, this.mobileAdsData.length);
-      this.combinedTableData = [];
-
-      for (let i = 0; i < maxLength; i++) {
-        const pcData = this.pcAdsData[i] || {};
-        const mobileData = this.mobileAdsData[i] || {};
-        this.combinedTableData.push({
-          pc: pcData,
-          mobile: mobileData,
-        });
-      }
-    },
-
-    // 엑셀 파일로 다운로드
-    downloadExcel() {
-      if (this.adsData.length === 0) {
-        alert('데이터가 없습니다.');
+    getNaverAdsData(keyword) {
+      this.selectedKeyword = keyword;
+      const data = this.adsData[keyword];
+      if (!data || data.length === 0) {
+        this.showDialog('😢 해당 키워드의 데이터가 없습니다.');
+        this.combinedTableData = [];
         return;
       }
 
-      // 현재 시간을 가져오기
-      const currentDate = new Date();
-      const time = currentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      this.pcAdsData = data.filter(ad => ad.Platform === 'PC');
+      this.mobileAdsData = data.filter(ad => ad.Platform === 'Mobile');
+      this.combineTableData();
+    },
 
-      // 엑셀 파일로 변환할 데이터를 준비
-      const wsData = this.adsData.map(ad => ({
-        Date: ad.Date,
-        Time: time, // 다운로드 시점의 시간
-        Keyword: ad.Keyword,
-        Rank: ad.Rank,
-        SellerName: ad.SellerName, // 판매자명 추가
-        Platform: ad.Platform,
-        Title: ad.Title,
-        Subtitle: ad.Subtitle, // subtitle 추가
-        Period: ad.Period, // period 추가
-        URL: ad['Main URL'],
+    combineTableData() {
+      const maxLength = Math.max(this.pcAdsData.length, this.mobileAdsData.length);
+      this.combinedTableData = Array.from({ length: maxLength }, (_, i) => ({
+        pc: this.pcAdsData[i] || {},
+        mobile: this.mobileAdsData[i] || {}
+      }));
+    },
+
+    downloadExcel() {
+      const allData = Object.values(this.adsData).flat();
+      if (allData.length === 0) {
+        this.showDialog('📂 다운로드할 데이터가 없습니다.');
+        return;
+      }
+
+      const time = new Date().toLocaleTimeString();
+      const wsData = allData.map(ad => ({
+        시간: time,
+        키워드: ad.Keyword,
+        순위: ad.Rank,
+        플랫폼: ad.Platform,
+        판매자: ad.SellerName,
+        제목: ad.Title,
+        부제목: ad.Subtitle,
+        기간: ad.Period,
+        URL: ad['Main URL']
       }));
 
-      // 워크북 생성
       const ws = XLSX.utils.json_to_sheet(wsData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '광고 데이터');
-
-      // 엑셀 파일 다운로드
-      try {
-        XLSX.writeFile(wb, 'naver_ads_data.xlsx');
-        console.log('엑셀 파일이 다운로드되었습니다.');
-      } catch (error) {
-        console.error('엑셀 파일 다운로드 중 오류 발생:', error);
-        alert('엑셀 파일 다운로드 중 오류가 발생했습니다.');
-      }
+      XLSX.writeFile(wb, 'naver_ads_data.xlsx');
     },
 
-    // 초기화 함수 (키워드 초기화)
     resetAll() {
-      this.keywordInput = ''; // 키워드 입력창 초기화
-      this.keywords = []; // 키워드 목록 초기화
-      // adsData는 초기화하지 않음 (검색 결과는 유지)
+      this.keywordInput = '';
+      this.keywords = [];
+      this.adsData = {};
+      this.combinedTableData = [];
+      this.selectedKeyword = null;
+      this.currentProgress = 0;
+      this.totalKeywords = 0;
     },
 
-    // 검색 초기화 함수 (검색 결과 초기화)
     clearSearchResults() {
-      if (this.adsData.length === 0) {
-        alert('삭제할 데이터가 없습니다.');
+      if (Object.keys(this.adsData).length === 0) {
+        this.showDialog('📭 삭제할 데이터가 없습니다.');
         return;
       }
-      this.adsData = []; // 광고 데이터 초기화
-      this.pcAdsData = []; // PC 광고 데이터 초기화
-      this.mobileAdsData = []; // 모바일 광고 데이터 초기화
-      this.combinedTableData = []; // 통합 테이블 데이터 초기화
+      this.adsData = {};
+      this.pcAdsData = [];
+      this.mobileAdsData = [];
+      this.combinedTableData = [];
+      this.selectedKeyword = null;
+    },
 
+    showDialog(message) {
+      Dialog.create({
+        title: '알림 📢',
+        message,
+        ok: '확인'
+      });
     }
   }
 };
@@ -232,11 +269,17 @@ export default {
   color: #2c3e50;
 }
 
+* {
+  font-family: 'Nanum Gothic', sans-serif;
+}
+
 .main-container {
   width: 69.6%;
-  margin: 250px auto 0 auto;
+  margin: 250px auto 200px auto;
   text-align: center;
   position: relative;
+  padding-bottom: 120px; /* ✅ 여유 공간 추가 */
+
 }
 
 .input-container {
@@ -284,66 +327,27 @@ button:hover {
   background-color: darkred;
 }
 
-.reset-keyword-button {
-  background-color: #ff6347;
+button.negative-btn:disabled {
+  background-color: #D32F2F;
   color: white;
-  border: none;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
-.reset-keyword-button:disabled {
-  background-color: #ddd;
-}
-
-.extra-button {
-  background-color: #4CAF50;
+button.primary-btn:disabled {
+  background-color: #1565C0;
   color: white;
-  border: none;
-}
-
-.extra-button:hover {
-  background-color: #45a049;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .button-container {
   position: absolute;
-  top: 0;
+  top: -15px;
   right: 0;
   display: flex;
   gap: 10px;
   margin-top: -40px;
-}
-
-.reset-button,
-.excel-download-button {
-  padding: 8px 12px; /* reset-button과 동일한 padding */
-  font-size: 14px; /* reset-button과 동일한 font-size */
-  cursor: pointer;
-  border: none;
-  white-space: nowrap;
-}
-
-.reset-button {
-  background-color: red;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.reset-button:disabled {
-  background-color: #ddd;
-}
-
-.excel-download-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.excel-download-button:hover {
-  background-color: #45a049;
 }
 
 .error {
@@ -358,19 +362,6 @@ button:hover {
   margin-left: auto;
   margin-right: auto;
   position: relative;
-}
-
-.keyword-list button {
-  background-color: #008CBA;
-  color: white;
-  padding: 10px;
-  margin: 5px;
-  border: none;
-  cursor: pointer;
-}
-
-.keyword-list button:hover {
-  background-color: #007B9E;
 }
 
 .table-container {
@@ -399,45 +390,112 @@ th {
   background-color: #f4f4f4;
 }
 
-.url-column {
-  max-width: 200px; /* 최대 너비를 설정 */
-  overflow-x: auto; /* 가로 스크롤이 가능하도록 설정 */
-  white-space: nowrap; /* 줄 바꿈 방지 */
+table td {
+  word-break: break-word;
 }
 
-.url-column a {
-  color: #0066cc;
-  text-decoration: none;
-  display: block; /* URL을 블록 요소로 처리하여 스크롤이 가능하게 만듦 */
-}
-
-.url-column span {
-  color: #ccc;
-}
-
-.keyword-excel-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.no-data {
-  text-align: center;
-  color: #ccc;
-  padding: 20px;
+table th,
+table td {
+  min-width: 100px;
 }
 
 .content-below-banner {
   position: relative;
-  top: 200px; /* 배너 높이인 120px + 배너의 마진 100px (상단과 텍스트 사이 간격) */
+  top: 200px;
   left: 0;
   width: 100%;
   padding: 10px;
   font-family: Arial, sans-serif;
   color: #333;
   text-align: left;
-  max-width: 1000px; /* 내용이 너무 커지지 않도록 제한 */
+  max-width: 1000px;
   margin-left: auto;
   margin-right: auto;
+}
+
+.primary-btn {
+  background-color: #1976D2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.primary-btn:hover {
+  background-color: #1565C0;
+}
+
+.secondary-btn {
+  background-color: #26A69A;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.secondary-btn:hover {
+  background-color: #1F8C80;
+}
+
+.negative-btn {
+  background-color: #F44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.negative-btn:hover {
+  background-color: #D32F2F;
+}
+
+.dense-btn {
+  padding: 14px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* 그리드 레이아웃: 한 줄에 6개의 키워드 버튼 표시 */
+.keyword-list-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #ddd;
+  margin-top: 10px;
+  box-sizing: border-box;
+}
+
+.keyword-list-container button {
+  background-color: #008CBA;
+  color: white;
+  padding: 8px 12px;
+  margin: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.keyword-list-container button:hover {
+  background-color: #007B9E;
+}
+
+/* 선택된 버튼에 적용할 활성화 스타일 */
+.keyword-list-container button.active {
+  background-color: #FF9800;
+}
+
+.url-column {
+  max-width: 200px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.url-column a {
+  color: #0066cc;
+  text-decoration: none;
+  display: block;
+}
+
+.url-column span {
+  color: #ccc;
 }
 </style>

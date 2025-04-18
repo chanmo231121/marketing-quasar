@@ -1,1 +1,26 @@
-// app global css in SCSS form
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic&display=swap');
+
+body,
+.q-body--standard,
+.q-btn,
+.q-btn__content,
+.q-input,
+.q-field,
+.q-field__native,
+.q-field__label,
+.q-item,
+.q-item-section,
+.q-checkbox__label,
+.q-page,
+.q-header,
+.q-footer,
+.q-toolbar,
+.q-toolbar-title,
+.q-list,
+.q-dialog,
+.q-card,
+.q-card-section,
+.q-tab-panel,
+.q-tab {
+  font-family: 'Nanum Gothic', sans-serif !important;
+}

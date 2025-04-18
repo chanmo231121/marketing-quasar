@@ -5,6 +5,12 @@ import { defineConfig } from '#q-app/wrappers'
 
 export default defineConfig((/* ctx */) => {
   return {
+
+    htmlVariables: {
+      productName: 'Maglo',
+      productDescription: '키워드 분석 도우미'
+    },
+
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
 
@@ -12,6 +18,8 @@ export default defineConfig((/* ctx */) => {
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
+      'pinia',
+      'device-redirect'
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
@@ -29,7 +37,7 @@ export default defineConfig((/* ctx */) => {
       // 'line-awesome',
       // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
 
-      'roboto-font', // optional, you are not bound to it
+      // 'roboto-font', // optional, you are not bound to it
       'material-icons', // optional, you are not bound to it
     ],
 
@@ -73,7 +81,6 @@ export default defineConfig((/* ctx */) => {
     devServer: {
 
       allowedHosts: [
-        '3c31-123-214-67-61.ngrok-free.app',
         'localhost',
         '127.0.0.1'
       ],
@@ -96,7 +103,8 @@ export default defineConfig((/* ctx */) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: []
+      plugins: ['Dialog']
+
     },
 
     // animations: 'all', // --- includes all animations

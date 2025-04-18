@@ -1,98 +1,67 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>최진우 병신 - 키워드 검색량 조회기</strong></h6>
-      <p>키워드의 조회수를 확인 할 수 있는 키워드 검색량 조회기입니다.</p>
-      <p>니똥고 망고똥고.</p>
+      <h6><strong>Maglo - 키워드 단일 검색량 조회기</strong></h6>
+      <p>키워드의 조회수를 확인할 수 있는 키워드 단일 검색량 조회기입니다.</p>
+      <p>한 줄에 하나씩 키워드를 입력해주세요.</p>
     </div>
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
           <textarea
             v-model="hintKeyword"
-            placeholder="키워드를 입력하세요 (한 줄에 하나씩 최대 1000개까지)"
+            placeholder="키워드를 입력하세요 (한 줄에 하나씩 최대 100개까지)"
             rows="4"
           ></textarea>
           <div class="button-group">
-            <button @click="fetchKeywords" :disabled="loading">
-              {{ loading ? '불러오는 중...' : '검색' }}
+            <button
+              @click="fetchKeywords"
+              :disabled="loading || hintKeyword.trim() === ''"
+              class="primary-btn dense-btn">
+              {{ loading ? `불러오는 중 ${currentProgress}/${totalKeywords}` : '검색' }}
             </button>
-            <button class="reset-keyword-button" @click="clearInput" :disabled="loading || hintKeyword === ''">
-              키워드 초기화
-            </button>
-            <button class="extra-button" @click="handleExcelUpload">
-              엑셀 업로드
-            </button>
-            <!-- 파일 선택 input (숨김) -->
-            <input
-              type="file"
-              ref="fileInput"
-              style="display: none"
-              accept=".xlsx, .xls"
-              @change="handleFileUpload"
-            />
+            <button class="negative-btn dense-btn" @click="clearInput" :disabled="loading || hintKeyword === ''">키워드 초기화</button>
           </div>
         </div>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
-
       <div class="keyword_list">
         <div class="button-container">
-          <button @click="downloadExcel" class="excel-download-button">엑셀로 다운로드</button>
-          <button class="reset-button" @click="clearSearchResults" :disabled="loading || keywords.length === 0">
-            검색 초기화
-          </button>
+          <button @click="downloadExcel" class="secondary-btn dense-btn">엑셀 다운로드(CSV)</button>
         </div>
 
-        <table cellpadding="0" cellspacing="0" id="mytable2" class="table table-striped">
+        <table class="table table-striped">
           <thead>
           <tr>
-            <th rowspan="2">
-              <input type="checkbox" v-model="selectAll" @change="toggleSelectAll" />
-            </th>
-            <th rowspan="2">NO</th>
-            <th rowspan="2">키워드</th>
-            <th colspan="2">월간검색수</th>
-            <th rowspan="2">검색수합계</th>
-            <th colspan="2">월간 블로그 발행</th>
-            <th rowspan="2">네이버쇼핑<br />카테고리</th>
-            <th colspan="2">월평균클릭수</th>
-            <th colspan="2">월평균클릭율</th>
-            <th rowspan="2">경쟁정도</th>
-            <th rowspan="2">월평균노출광고수</th>
-          </tr>
-          <tr>
-            <th>PC</th>
-            <th>Mobile</th>
-            <th>수량</th>
-            <th>포화도</th>
-            <th>PC</th>
-            <th>Mobile</th>
-            <th>PC</th>
-            <th>Mobile</th>
+            <th>NO</th>
+            <th>키워드</th>
+            <th>월간검색수(PC)</th>
+            <th>월간검색수(Mobile)</th>
+            <th>검색수합계</th>
+            <th>클릭수(PC)</th>
+            <th>클릭수(Mobile)</th>
+            <th>클릭률(PC)</th>
+            <th>클릭률(Mobile)</th>
+            <th>경쟁정도</th>
+            <th>광고노출수</th>
           </tr>
           </thead>
-          <tbody class="sch_tbody">
+          <tbody>
           <tr v-if="keywords.length === 0">
-            <td colspan="15" class="null_td">키워드를 조회하십시오.</td>
+            <td colspan="11">키워드를 조회하십시오.</td>
           </tr>
-          <tr v-for="(keyword, index) in keywords" :key="index">
-            <td><input type="checkbox" v-model="keyword.checked" /></td>
+          <tr v-for="(k, index) in keywords" :key="index">
             <td>{{ index + 1 }}</td>
-            <td>{{ keyword['연관키워드'] }}</td>
-            <td>{{ keyword['월간검색수_PC'] }}</td>
-            <td>{{ keyword['월간검색수_모바일'] }}</td>
-            <td>{{ keyword['월간검색수_PC'] + keyword['월간검색수_모바일'] }}</td>
-            <td>{{ keyword['월간블로그발행수량'] || 'N/A' }}</td>
-            <td>{{ keyword['월간블로그발행포화도'] || 'N/A' }}</td>
-            <td>X</td>
-            <td>{{ keyword['월평균클릭수_PC'] }}</td>
-            <td>{{ keyword['월평균클릭수_모바일'] }}</td>
-            <td>{{ keyword['월평균클릭률_PC'] ? keyword['월평균클릭률_PC'] + '%' : 'N/A' }}</td>
-            <td>{{ keyword['월평균클릭률_모바일'] ? keyword['월평균클릭률_모바일'] + '%' : 'N/A' }}</td>
-            <td>{{ keyword['경쟁정도'] }}</td>
-            <td>{{ keyword['월평균노출광고수'] }}</td>
+            <td>{{ k['연관키워드'] }}</td>
+            <td>{{ k['월간검색수_PC'] }}</td>
+            <td>{{ k['월간검색수_모바일'] }}</td>
+            <td>{{ k['월간검색수_PC'] + k['월간검색수_모바일'] }}</td>
+            <td>{{ k['월평균클릭수_PC'] }}</td>
+            <td>{{ k['월평균클릭수_모바일'] }}</td>
+            <td>{{ k['월평균클릭률_PC'] }}%</td>
+            <td>{{ k['월평균클릭률_모바일'] }}%</td>
+            <td>{{ k['경쟁정도'] }}</td>
+            <td>{{ k['월평균노출광고수'] }}</td>
           </tr>
           </tbody>
         </table>
@@ -102,8 +71,8 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref, getCurrentInstance } from 'vue';
+import { api } from 'boot/axios.js';
 import * as XLSX from 'xlsx';
 
 export default {
@@ -111,151 +80,130 @@ export default {
     const hintKeyword = ref('');
     const keywords = ref([]);
     const loading = ref(false);
-    const error = ref('');
-    const fileInput = ref(null);
-    const selectAll = ref(false);
+    const currentProgress = ref(0);
+    const totalKeywords = ref(0);
+    const { proxy } = getCurrentInstance();
 
-    // 전체 선택/해제 토글
-    const toggleSelectAll = () => {
-      keywords.value.forEach((keyword) => {
-        keyword.checked = selectAll.value;
+    const showDialog = (msg) => {
+      proxy.$q.dialog({
+        title: '알림 📢',
+        message: msg,
+        ok: '확인'
       });
     };
 
-    // 파일 업로드 핸들러
-    const handleExcelUpload = () => {
-      fileInput.value.click();
-    };
-
-    // 파일 선택 후 처리
-    const handleFileUpload = (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-
-        // 첫 번째 시트의 데이터를 JSON으로 변환
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        // 첫 번째 열의 데이터를 키워드로 추출
-        const keywordsFromExcel = jsonData
-          .map((row) => row[0]?.toString().trim())
-          .filter((keyword) => keyword);
-
-        // hintKeyword에 키워드 추가 (기존 키워드와 병합)
-        hintKeyword.value = [...new Set([...hintKeyword.value.split('\n'), ...keywordsFromExcel])]
-          .filter((keyword) => keyword)
-          .join('\n');
-      };
-
-      reader.readAsArrayBuffer(file);
-    };
-
-    // 키워드 조회
     const fetchKeywords = async () => {
-      const keywordList = hintKeyword.value.split('\n').map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0);
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏');
+        return;
+      }
+
+      const keywordList = hintKeyword.value
+        .split('\n')
+        .map((kw) => kw.trim())
+        .filter(Boolean);
 
       if (keywordList.length === 0) {
-        error.value = '키워드를 입력해주세요.';
+        showDialog('키워드를 입력해주세요.');
+        return;
+      }
+
+      if (keywordList.length > 100) {
+        showDialog('최대 100개 키워드까지 입력할 수 있습니다.');
         return;
       }
 
       loading.value = true;
-      error.value = '';
+      keywords.value = [];
+      currentProgress.value = 0;
+      totalKeywords.value = keywordList.length;
 
       try {
-        const response = await axios.get('http://localhost:8080/api/keywords', {
-          params: { hintKeyword: keywordList.join(',') },
-        });
+        await api.get('/api/keywords/increment-usage');
 
-        if (response.data && response.data.length > 0) {
-          keywords.value = [...keywords.value, ...response.data.map((keyword) => ({ ...keyword, checked: false }))];
-        } else {
-          error.value = '연관된 키워드가 없습니다.';
+        const batches = [];
+        for (let i = 0; i < keywordList.length; i += 5) {
+          batches.push(keywordList.slice(i, i + 5));
+        }
+
+        for (const batch of batches) {
+          const encoded = batch.join(',');
+          const res = await api.get('/api/keywords', {
+            params: { hintKeyword: encoded }
+          });
+
+          // approvalMessage가 존재하면, 해당 메시지를 다이얼로그로 표시하고 나머지 처리를 중단합니다.
+          if (res.data.approvalMessage) {
+            showDialog(res.data.approvalMessage);
+            keywords.value = [];
+            return;
+          }
+
+          if (res.data.results && Array.isArray(res.data.results)) {
+            keywords.value.push(...res.data.results);
+            currentProgress.value += batch.length;
+          }
+        }
+
+        if (keywords.value.length === 0) {
+          showDialog('검색 결과가 없습니다.');
         }
       } catch (err) {
-        error.value = '키워드 불러오기 실패';
+        const errorMsg =
+          err.response?.data?.error ||
+          err.response?.data?.message || // ✅ message도 확인하도록 추가
+          '❌ 키워드 검색 실패. 다시 시도해주세요.';
+
+        showDialog(errorMsg);
         console.error(err);
       } finally {
         loading.value = false;
       }
     };
 
-    // 검색 결과 초기화
-    const clearSearchResults = () => {
-      keywords.value = [];
-      error.value = '';
-    };
-
-    // 입력 초기화
     const clearInput = () => {
       hintKeyword.value = '';
+      keywords.value = [];
     };
 
-    // 엑셀 다운로드
     const downloadExcel = () => {
-      const checkedKeywords = keywords.value.filter((keyword) => keyword.checked);
-
-      if (checkedKeywords.length === 0) {
-        alert('체크된 항목이 없습니다.');
+      if (keywords.value.length === 0) {
+        showDialog('📂 다운로드할 데이터가 없습니다.');
         return;
       }
 
-      const currentDate = new Date();
-      const time = currentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-      const wsData = checkedKeywords.map((keyword, index) => ({
-        NO: index + 1,
-        시간: time,
-        키워드: keyword['연관키워드'],
-        월간검색수_PC: keyword['월간검색수_PC'],
-        월간검색수_모바일: keyword['월간검색수_모바일'],
-        검색수합계: keyword['월간검색수_PC'] + keyword['월간검색수_모바일'],
-        월간블로그발행수량: keyword['월간블로그발행수량'] || 'N/A',
-        월간블로그발행포화도: keyword['월간블로그발행포화도'] || 'N/A',
-        네이버쇼핑카테고리: 'X',
-        월평균클릭수_PC: keyword['월평균클릭수_PC'],
-        월평균클릭수_모바일: keyword['월평균클릭수_모바일'],
-        월평균클릭률_PC: keyword['월평균클릭률_PC'] ? keyword['월평균클릭률_PC'] + '%' : 'N/A',
-        월평균클릭률_모바일: keyword['월평균클릭률_모바일'] ? keyword['월평균클릭률_모바일'] + '%' : 'N/A',
-        경쟁정도: keyword['경쟁정도'],
-        월평균노출광고수: keyword['월평균노출광고수'],
+      const wsData = keywords.value.map((k, i) => ({
+        NO: i + 1,
+        키워드: k['연관키워드'],
+        월간검색수_PC: k['월간검색수_PC'],
+        월간검색수_모바일: k['월간검색수_모바일'],
+        검색수합계: k['월간검색수_PC'] + k['월간검색수_모바일'],
+        월평균클릭수_PC: k['월평균클릭수_PC'],
+        월평균클릭수_모바일: k['월평균클릭수_모바일'],
+        월평균클릭률_PC: k['월평균클릭률_PC'] + '%',
+        월평균클릭률_모바일: k['월평균클릭률_모바일'] + '%',
+        경쟁정도: k['경쟁정도'],
+        월평균노출광고수: k['월평균노출광고수'],
       }));
 
       const ws = XLSX.utils.json_to_sheet(wsData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '키워드 데이터');
-
-      try {
-        XLSX.writeFile(wb, 'checked_keyword_data.xlsx');
-        console.log('엑셀 파일이 다운로드되었습니다.');
-      } catch (error) {
-        console.error('엑셀 파일 다운로드 중 오류 발생:', error);
-        alert('엑셀 파일 다운로드 중 오류가 발생했습니다.');
-      }
+      XLSX.writeFile(wb, 'keyword_data.xlsx');
     };
 
     return {
       hintKeyword,
       keywords,
       loading,
-      error,
-      fileInput,
-      selectAll,
-      toggleSelectAll,
+      currentProgress,
+      totalKeywords,
       fetchKeywords,
-      clearSearchResults,
       clearInput,
-      handleExcelUpload,
-      handleFileUpload,
       downloadExcel,
     };
-  },
+  }
 };
 </script>
 
@@ -266,11 +214,17 @@ export default {
   color: #2c3e50;
 }
 
+* {
+  font-family: 'Nanum Gothic', sans-serif;
+}
+
 .main-container {
   width: 69.6%;
-  margin: 250px auto 0 auto;
+  margin: 250px auto 200px auto;
   text-align: center;
   position: relative;
+  padding-bottom: 120px; /* ✅ 여유 공간 추가 */
+
 }
 
 .input-container {
@@ -318,65 +272,13 @@ button:hover {
   background-color: darkred;
 }
 
-.reset-keyword-button {
-  background-color: #ff6347;
-  color: white;
-  border: none;
-}
-
-.reset-keyword-button:disabled {
-  background-color: #ddd;
-}
-
-.extra-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-}
-
-.extra-button:hover {
-  background-color: #45a049;
-}
-
 .button-container {
   position: absolute;
-  top: 0;
+  top: -15px;
   right: 0;
   display: flex;
   gap: 10px;
   margin-top: -40px;
-}
-
-.excel-download-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-.reset-button,
-.excel-download-button {
-  padding: 8px 12px; /* reset-button과 동일한 padding */
-  font-size: 14px; /* reset-button과 동일한 font-size */
-  cursor: pointer;
-  border: none;
-  white-space: nowrap;
-}
-
-.excel-download-button:hover {
-  background-color: #45a049;
-}
-
-.reset-button {
-  background-color: red;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.reset-button:disabled {
-  background-color: #ddd;
 }
 
 .error {
@@ -395,14 +297,14 @@ button:hover {
 
 .content-below-banner {
   position: relative;
-  top: 200px; /* 배너 높이인 120px + 배너의 마진 100px (상단과 텍스트 사이 간격) */
+  top: 200px;
   left: 0;
   width: 100%;
   padding: 10px;
   font-family: Arial, sans-serif;
   color: #333;
   text-align: left;
-  max-width: 1000px; /* 내용이 너무 커지지 않도록 제한 */
+  max-width: 1000px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -429,5 +331,72 @@ th {
 
 td {
   background-color: #f9f9f9;
+}
+
+table td {
+  word-break: break-word;
+}
+
+table th,
+table td {
+  min-width: 100px;
+}
+
+.primary-btn {
+  background-color: #1976D2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+button.negative-btn:disabled {
+  background-color: #D32F2F;
+  color: white;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+button.primary-btn:disabled {
+  background-color: #1565C0;
+  color: white;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.primary-btn:hover {
+  background-color: #1565C0;
+}
+
+.secondary-btn {
+  background-color: #26A69A;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.secondary-btn:hover {
+  background-color: #1F8C80;
+}
+
+.primary-btn.loading {
+  background-color: #FFC107;
+  color: #000;
+}
+
+.negative-btn {
+  background-color: #F44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.negative-btn:hover {
+  background-color: #D32F2F;
+}
+
+.dense-btn {
+  padding: 14px 12px;
+  font-size: 14px;
+  cursor: pointer;
 }
 </style>

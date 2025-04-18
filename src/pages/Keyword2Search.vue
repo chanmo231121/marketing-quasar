@@ -1,9 +1,9 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>최진우 병신 - 키워드 검색량 조회기</strong></h6>
-      <p>키워드의 조회수를 확인 할 수 있는 키워드 검색량 조회기입니다.</p>
-      <p>니똥고 망고똥고.</p>
+      <h6><strong>Maglo - 키워드 연관 검색량 조회기</strong></h6>
+      <p>키워드의 조회수를 확인 할 수 있는 키워드 연관 검색량 조회기입니다.</p>
+      <p>한줄에 하나씩 키워드를 입력해주세요.</p>
     </div>
     <header class="main-container">
       <div class="input-container">
@@ -14,14 +14,17 @@
             rows="4"
           ></textarea>
           <div class="button-group">
-            <button @click="fetchKeywords" :disabled="loading">
+            <button
+              @click="fetchKeywords"
+              :disabled="loading || hintKeyword.trim() === ''"
+              class="primary-btn dense-btn">
               {{ loading ? '불러오는 중...' : '검색' }}
             </button>
-            <button class="reset-keyword-button" @click="clearInput" :disabled="loading || hintKeyword === ''">
+            <button
+              class="negative-btn dense-btn"
+              @click="clearInput"
+              :disabled="loading || hintKeyword === ''">
               키워드 초기화
-            </button>
-            <button class="extra-button" @click="extraFunction">
-              엑셀 업로드
             </button>
           </div>
         </div>
@@ -31,8 +34,15 @@
 
       <div class="keyword_list">
         <div class="button-container">
-          <button @click="downloadExcel" class="excel-download-button">엑셀로 다운로드</button>
-          <button class="reset-button" @click="clearSearchResults" :disabled="loading || keywords.length === 0">
+          <button
+            @click="downloadExcel"
+            class="secondary-btn dense-btn">
+            엑셀 다운로드(CSV)
+          </button>
+          <button
+            class="negative-btn dense-btn"
+            @click="clearSearchResults"
+            :disabled="loading || keywords.length === 0">
             검색 초기화
           </button>
         </div>
@@ -47,8 +57,6 @@
             <th rowspan="2">키워드</th>
             <th colspan="2">월간검색수</th>
             <th rowspan="2">검색수합계</th>
-            <th colspan="2">월간 블로그 발행</th>
-            <th rowspan="2">네이버쇼핑<br />카테고리</th>
             <th colspan="2">월평균클릭수</th>
             <th colspan="2">월평균클릭율</th>
             <th rowspan="2">경쟁정도</th>
@@ -57,8 +65,6 @@
           <tr>
             <th>PC</th>
             <th>Mobile</th>
-            <th>수량</th>
-            <th>포화도</th>
             <th>PC</th>
             <th>Mobile</th>
             <th>PC</th>
@@ -67,20 +73,15 @@
           </thead>
           <tbody class="sch_tbody">
           <tr v-if="keywords.length === 0">
-            <td colspan="15" class="null_td">키워드를 조회하십시오.</td>
+            <td colspan="12" class="null_td">키워드를 조회하십시오.</td>
           </tr>
           <tr v-for="(keyword, index) in keywords" :key="index">
-            <td>
-              <input type="checkbox" v-model="keyword.checked" />
-            </td>
+            <td><input type="checkbox" v-model="keyword.checked" /></td>
             <td>{{ index + 1 }}</td>
             <td>{{ keyword['연관키워드'] }}</td>
             <td>{{ keyword['월간검색수_PC'] }}</td>
             <td>{{ keyword['월간검색수_모바일'] }}</td>
             <td>{{ keyword['월간검색수_PC'] + keyword['월간검색수_모바일'] }}</td>
-            <td>{{ keyword['월간블로그발행수량'] || 'N/A' }}</td>
-            <td>{{ keyword['월간블로그발행포화도'] || 'N/A' }}</td>
-            <td>X</td>
             <td>{{ keyword['월평균클릭수_PC'] }}</td>
             <td>{{ keyword['월평균클릭수_모바일'] }}</td>
             <td>{{ keyword['월평균클릭률_PC'] ? keyword['월평균클릭률_PC'] + '%' : 'N/A' }}</td>
@@ -96,8 +97,8 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref, getCurrentInstance } from 'vue';
+import { api } from 'boot/axios.js';
 import * as XLSX from 'xlsx';
 
 export default {
@@ -107,99 +108,99 @@ export default {
     const loading = ref(false);
     const error = ref('');
     const selectAll = ref(false);
+    const { proxy } = getCurrentInstance();
 
-    // 전체 선택/해제 토글
+    const showDialog = (msg) => {
+      proxy.$q.dialog({
+        title: '알림 📢',
+        message: msg,
+        ok: '확인'
+      });
+    };
+
     const toggleSelectAll = () => {
       keywords.value.forEach((keyword) => {
         keyword.checked = selectAll.value;
       });
     };
 
-    // 키워드 조회
     const fetchKeywords = async () => {
-      const keywordList = hintKeyword.value.split('\n').map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0);
-
-      if (keywordList.length === 0) {
-        error.value = '키워드를 입력해주세요.';
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏');
         return;
       }
 
+      let keywordList = hintKeyword.value.split('\n').map(k => k.trim()).filter(k => k.length);
+
+      if (!keywordList.length) {
+        showDialog('📝 키워드를 입력해주세요.');
+        return;
+      }
+
+      if (keywordList.length > 5) {
+        keywordList = keywordList.slice(0, 5);
+        showDialog('⚠️ 최대 5개까지 검색 가능합니다. 앞에서부터 5개만 검색됩니다.');
+      }
+
       loading.value = true;
-      error.value = '';
 
       try {
-        const response = await axios.get('http://localhost:8080/api/keyword2', {
-          params: { hintKeyword: keywordList.join(',') },
+        const response = await api.get('/api/keyword2', {
+          params: { hintKeyword: keywordList.join(',') }
         });
 
-        if (response.data && response.data.length > 0) {
-          keywords.value = [...keywords.value, ...response.data.map((keyword) => ({ ...keyword, checked: false }))];
+        // 백엔드에서 approvalMessage가 있을 경우 해당 메시지를 다이얼로그로 표시하고 검색 결과를 초기화합니다.
+        if (response.data?.approvalMessage) {
+          showDialog(response.data.approvalMessage);
+          keywords.value = [];
+          return;
+        }
+
+        if (Array.isArray(response.data) && response.data.length) {
+          keywords.value = response.data.map(k => ({ ...k, checked: false }));
         } else {
-          error.value = '연관된 키워드가 없습니다.';
+          showDialog('😢 연관된 키워드가 없습니다.');
         }
       } catch (err) {
-        error.value = '키워드 불러오기 실패';
         console.error(err);
+
+        const errorMessage =
+          err.response?.data?.error ||       // 🔍 기존 키
+          err.response?.data?.message ||     // ✅ 추가된 메시지 키
+          '❌ 키워드 불러오기 실패. 다시 시도해주세요.';
+
+        showDialog(errorMessage);
       } finally {
         loading.value = false;
       }
     };
 
-    // 검색 결과 초기화
     const clearSearchResults = () => {
       keywords.value = [];
       error.value = '';
     };
 
-    // 입력 초기화
     const clearInput = () => {
       hintKeyword.value = '';
     };
 
-    // 추가 기능 (엑셀 업로드)
-    const extraFunction = () => {
-      alert('추가 버튼이 클릭되었습니다!');
-    };
-
-    // 엑셀 다운로드
     const downloadExcel = () => {
-      const checkedKeywords = keywords.value.filter((keyword) => keyword.checked);
-
-      if (checkedKeywords.length === 0) {
-        alert('체크된 항목이 없습니다.');
+      if (keywords.value.length === 0) {
+        showDialog('📂 다운로드할 데이터가 없습니다.');
         return;
       }
 
-      // 엑셀 파일로 변환할 데이터를 준비
-      const wsData = checkedKeywords.map((keyword, index) => ({
-        NO: index + 1,
-        키워드: keyword['연관키워드'],
-        월간검색수_PC: keyword['월간검색수_PC'],
-        월간검색수_모바일: keyword['월간검색수_모바일'],
-        검색수합계: keyword['월간검색수_PC'] + keyword['월간검색수_모바일'],
-        월간블로그발행수량: keyword['월간블로그발행수량'] || 'N/A',
-        월간블로그발행포화도: keyword['월간블로그발행포화도'] || 'N/A',
-        네이버쇼핑카테고리: 'X',
-        월평균클릭수_PC: keyword['월평균클릭수_PC'],
-        월평균클릭수_모바일: keyword['월평균클릭수_모바일'],
-        월평균클릭률_PC: keyword['월평균클릭률_PC'] ? keyword['월평균클릭률_PC'] + '%' : 'N/A',
-        월평균클릭률_모바일: keyword['월평균클릭률_모바일'] ? keyword['월평균클릭률_모바일'] + '%' : 'N/A',
-        경쟁정도: keyword['경쟁정도'],
-        월평균노출광고수: keyword['월평균노출광고수'],
-      }));
-
-      // 워크북 생성
-      const ws = XLSX.utils.json_to_sheet(wsData);
+      const ws = XLSX.utils.json_to_sheet(keywords.value);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '키워드 데이터');
+      XLSX.utils.book_append_sheet(wb, ws, 'Keywords');
 
-      // 엑셀 파일 다운로드
       try {
-        XLSX.writeFile(wb, 'checked_keyword_data.xlsx');
-        console.log('엑셀 파일이 다운로드되었습니다.');
-      } catch (error) {
-        console.error('엑셀 파일 다운로드 중 오류 발생:', error);
-        alert('엑셀 파일 다운로드 중 오류가 발생했습니다.');
+        XLSX.writeFile(wb, 'all_keywords.xlsx');
+        showDialog('✅ 엑셀 파일 다운로드 완료!');
+      } catch (err) {
+        console.error(err);
+        showDialog('⚠️ 엑셀 다운로드 중 오류가 발생했습니다.');
       }
     };
 
@@ -213,13 +214,11 @@ export default {
       fetchKeywords,
       clearSearchResults,
       clearInput,
-      extraFunction,
-      downloadExcel,
+      downloadExcel
     };
-  },
+  }
 };
 </script>
-
 
 <style scoped>
 #app {
@@ -228,11 +227,17 @@ export default {
   color: #2c3e50;
 }
 
+* {
+  font-family: 'Nanum Gothic', sans-serif;
+}
+
 .main-container {
   width: 69.6%;
-  margin: 250px auto 0 auto;
+  margin: 250px auto 200px auto;
   text-align: center;
   position: relative;
+  padding-bottom: 120px; /* ✅ 여유 공간 추가 */
+
 }
 
 .input-container {
@@ -280,69 +285,27 @@ button:hover {
   background-color: darkred;
 }
 
-.reset-keyword-button {
-  background-color: #ff6347;
+button.negative-btn:disabled {
+  background-color: #D32F2F;
   color: white;
-  border: none;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
-.reset-keyword-button:disabled {
-  background-color: #ddd;
-}
-
-.extra-button {
-  background-color: #4CAF50;
+button.primary-btn:disabled {
+  background-color: #1565C0;
   color: white;
-  border: none;
-}
-
-.extra-button:hover {
-  background-color: #45a049;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .button-container {
   position: absolute;
-  top: 0;
+  top: -15px;
   right: 0;
   display: flex;
   gap: 10px;
   margin-top: -40px;
-}
-
-.excel-download-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-
-
-.excel-download-button:hover {
-  background-color: #45a049;
-}
-
-.reset-button,
-.excel-download-button {
-  padding: 8px 12px; /* reset-button과 동일한 padding */
-  font-size: 14px; /* reset-button과 동일한 font-size */
-  cursor: pointer;
-  border: none;
-  white-space: nowrap;
-}
-
-
-.reset-button {
-  background-color: red;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.reset-button:disabled {
-  background-color: #ddd;
 }
 
 .error {
@@ -394,15 +357,54 @@ table td {
 
 .content-below-banner {
   position: relative;
-  top: 200px; /* 배너 높이인 120px + 배너의 마진 100px (상단과 텍스트 사이 간격) */
+  top: 200px;
   left: 0;
   width: 100%;
   padding: 10px;
   font-family: Arial, sans-serif;
   color: #333;
   text-align: left;
-  max-width: 1000px; /* 내용이 너무 커지지 않도록 제한 */
+  max-width: 1000px;
   margin-left: auto;
   margin-right: auto;
+}
+
+.primary-btn {
+  background-color: #1976D2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.primary-btn:hover {
+  background-color: #1565C0;
+}
+
+.secondary-btn {
+  background-color: #26A69A;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.secondary-btn:hover {
+  background-color: #1F8C80;
+}
+
+.negative-btn {
+  background-color: #F44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.negative-btn:hover {
+  background-color: #D32F2F;
+}
+
+.dense-btn {
+  padding: 14px 12px;
+  font-size: 14px;
+  cursor: pointer;
 }
 </style>
