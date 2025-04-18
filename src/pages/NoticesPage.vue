@@ -136,7 +136,7 @@
 <script>
 import { ref, computed, getCurrentInstance } from 'vue'
 import { api } from 'boot/axios.js'
-import { useUserStore } from 'stores/UserStore'
+import { useUserStore } from 'stores/userStore'
 
 export default {
   setup() {
