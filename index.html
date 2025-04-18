@@ -1,22 +1,27 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title><%= productName %></title>
+<head>
+  <title><%= productName %></title>
 
-    <meta charset="utf-8">
-    <meta name="description" content="<%= productDescription %>">
-    <meta name="format-detection" content="telephone=no">
-    <meta name="msapplication-tap-highlight" content="no">
-    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>">
+  <meta charset="utf-8">
+  <meta name="description" content="<%= productDescription %>">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="msapplication-tap-highlight" content="no">
+  <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>">
 
-    <link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
 
+  <link rel="icon" type="image/png" href="icons/maglo2.png">
 
-    <link rel="icon" type="image/png" href="icons/maglo2.png">
-
-  </head>
-  <body>
-    <!-- quasar:entry-point -->
-  </body>
+  <!-- ✅ Open Graph 메타태그 추가 -->
+  <meta property="og:title" content="Maglo - 키워드 분석 도우미" />
+  <meta property="og:description" content="검색 키워드 분석은 Maglo 하나로 끝!" />
+  <meta property="og:image" content="https://www.maglo.kr/icons/maglo2.png" />
+  <meta property="og:url" content="https://www.maglo.kr/" />
+  <meta property="og:type" content="website" />
+</head>
+<body>
+<!-- quasar:entry-point -->
+</body>
 </html>
