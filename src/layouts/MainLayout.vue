@@ -88,18 +88,18 @@
       </q-toolbar>
 
       <q-tabs class="q-mx-auto custom-tabs" align="center" dense>
-        <q-route-tab to="/page1" class="custom-tab">
-          <q-icon name="search" size="20px" class="tab-icon" /> 키워드 단일검색
-        </q-route-tab>
-        <q-route-tab to="/page2" class="custom-tab">
-          <q-icon name="link" size="20px" class="tab-icon" /> 키워드 연관검색
-        </q-route-tab>
-        <q-route-tab to="/page3" class="custom-tab">
-          <q-icon name="code" size="20px" class="tab-icon" /> 키워드 조합
-        </q-route-tab>
-        <q-route-tab to="/page4" class="custom-tab">
-          <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
-        </q-route-tab>
+      <q-route-tab to="/single-search" class="custom-tab">
+        <q-icon name="search" size="20px" class="tab-icon" /> 키워드 단일검색
+      </q-route-tab>
+      <q-route-tab to="/related-search" class="custom-tab">
+        <q-icon name="link" size="20px" class="tab-icon" /> 키워드 연관검색
+      </q-route-tab>
+      <q-route-tab to="/keyword-mix" class="custom-tab">
+        <q-icon name="code" size="20px" class="tab-icon" /> 키워드 조합
+      </q-route-tab>
+      <q-route-tab to="/ranking-search" class="custom-tab">
+        <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
+      </q-route-tab>
         <!-- 공지사항 메뉴 추가 -->
         <q-route-tab to="/notices" class="custom-tab">
           <q-icon name="announcement" size="20px" class="tab-icon" /> 공지사항

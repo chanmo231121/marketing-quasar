@@ -1,16 +1,14 @@
-// src/router/routes.js
-
 const routes = [
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/KeywordSearch.vue') },
-      { path: 'page1', component: () => import('pages/KeywordSearch.vue') },
-      { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
-      { path: 'page3', component: () => import('pages/KeywordMix.vue') },
-      { path: 'page4', component: () => import('pages/KeywordRanking.vue') },
-      { path: 'page5', component: () => import('pages/Keyword3Search.vue') },
+      { path: 'single-search', component: () => import('pages/KeywordSearch.vue') },
+      { path: 'related-search', component: () => import('pages/Keyword2Search.vue') },
+      { path: 'keyword-mix', component: () => import('pages/KeywordMix.vue') },
+      { path: 'ranking-search', component: () => import('pages/KeywordRanking.vue') },
+      { path: 'page5', component: () => import('pages/Keyword3Search.vue') }, // 아직 테스트 중
       { path: 'notices', component: () => import('pages/NoticesPage.vue') },
       { path: 'login', component: () => import('pages/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/SignupPage.vue') },
@@ -18,15 +16,16 @@ const routes = [
       { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') }
     ]
   },
+
   {
     path: '/m',
     component: () => import('layouts/MobileMainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/KeywordSearch.vue') },
-      { path: 'page1', component: () => import('pages/KeywordSearch.vue') },
-      { path: 'page2', component: () => import('pages/Keyword2Search.vue') },
-      { path: 'page3', component: () => import('pages/KeywordMix.vue') },
-      { path: 'page4', component: () => import('pages/KeywordRanking.vue') },
+      { path: 'single-search', component: () => import('pages/KeywordSearch.vue') },
+      { path: 'related-search', component: () => import('pages/Keyword2Search.vue') },
+      { path: 'keyword-mix', component: () => import('pages/KeywordMix.vue') },
+      { path: 'ranking-search', component: () => import('pages/KeywordRanking.vue') },
       { path: 'notices', component: () => import('pages/NoticesPage.vue') }
     ]
   },
