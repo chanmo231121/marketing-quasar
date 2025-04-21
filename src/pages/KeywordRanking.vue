@@ -202,6 +202,7 @@ export default {
       loading.value = true
       currentProgress.value = 0
       totalKeywords.value = processedKeywords.length
+      const hadError = ref(false)
 
       try {
         await Promise.allSettled(
@@ -213,6 +214,13 @@ export default {
                 adsData.value[keyword].push(...data)
               })
               .catch(err => {
+                hadError.value = true
+                const errorMessage = err?.response?.data?.error
+                if (errorMessage) {
+                  showDialog(errorMessage)
+                } else {
+                  showDialog(`❌ ${keyword} 처리 실패`)
+                }
                 console.error(`❌ ${keyword} 처리 실패`, err)
                 adsData.value[keyword] = []
               })
@@ -222,11 +230,13 @@ export default {
           )
         )
 
-        const allEmpty = Object.values(adsData.value).every(arr => arr.length === 0)
-        if (!allEmpty) {
-          showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
-        } else {
-          showDialog('📭 키워드 데이터가 없습니다.')
+        if (!hadError.value) {
+          const allEmpty = Object.values(adsData.value).every(arr => arr.length === 0)
+          if (!allEmpty) {
+            showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+          } else {
+            showDialog('📭 키워드 데이터가 없습니다.')
+          }
         }
 
       } catch (err) {
