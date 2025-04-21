@@ -204,41 +204,34 @@ export default {
       totalKeywords.value = processedKeywords.length
 
       try {
-        const response = await api.post('/api/naver-ads/search', {
-          keywords: processedKeywords.join('\n')
-        });
-
-        if (response.data?.approvalMessage) {
-          showDialog(response.data.approvalMessage)
-          adsData.value = {}
-          return
-        }
-
-        const grouped = {}
-        for (const ad of response.data) {
-          if (!grouped[ad.Keyword]) grouped[ad.Keyword] = []
-          grouped[ad.Keyword].push(ad)
-        }
-        adsData.value = grouped
+        await Promise.allSettled(
+          processedKeywords.map(keyword =>
+            api.post('/api/naver-ads/search', { keywords: keyword })
+              .then(res => {
+                const data = res.data || []
+                if (!adsData.value[keyword]) adsData.value[keyword] = []
+                adsData.value[keyword].push(...data)
+              })
+              .catch(err => {
+                console.error(`❌ ${keyword} 처리 실패`, err)
+                adsData.value[keyword] = []
+              })
+              .finally(() => {
+                currentProgress.value++
+              })
+          )
+        )
 
         const allEmpty = Object.values(adsData.value).every(arr => arr.length === 0)
         if (!allEmpty) {
           showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+        } else {
+          showDialog('📭 키워드 데이터가 없습니다.')
         }
+
       } catch (err) {
-        if (err.response?.status === 401) return
-
-        let errorMsg = '❌ 키워드 랭킹 조회 실패. 다시 시도해주세요.'
-        if (err.response?.data?.message) {
-          errorMsg = ` ${err.response.data.message}`
-        } else if (err.response?.data?.error) {
-          errorMsg = ` ${err.response.data.error}`
-        } else if (err.message) {
-          errorMsg = ` ${err.message}`
-        }
-
-        showDialog(errorMsg)
-        console.error('❌ 랭킹 조회 에러:', err)
+        showDialog('❌ 키워드 처리 중 오류가 발생했습니다.')
+        console.error('❌ 처리 실패:', err)
       } finally {
         loading.value = false
       }
