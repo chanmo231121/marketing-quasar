@@ -174,76 +174,81 @@ export default {
     onMounted(fetchBanner);
 
     const fetchKeywords = async () => {
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('accessToken')
       if (!token) {
-        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏');
-        return;
+        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏')
+        return
       }
 
-      const keywordList = hintKeyword.value
-        .split('\n')
-        .map((kw) => kw.trim())
-        .filter(Boolean);
+      const list = hintKeyword.value
+        .split('\n').map(s => s.trim()).filter(Boolean)
 
-      if (keywordList.length === 0) {
-        showDialog('키워드를 입력해주세요.');
-        return;
+      if (list.length === 0) {
+        showDialog('키워드를 입력해주세요.')
+        return
+      }
+      if (list.length > 100) {
+        showDialog('최대 100개 키워드까지 입력할 수 있습니다.')
+        return
       }
 
-      if (keywordList.length > 100) {
-        showDialog('최대 100개 키워드까지 입력할 수 있습니다.');
-        return;
-      }
-
-      loading.value = true;
-      keywords.value = [];
-      currentProgress.value = 0;
-      totalKeywords.value = keywordList.length;
+      loading.value = true
+      keywords.value = []
+      currentProgress.value = 0
+      totalKeywords.value = list.length
 
       try {
-        await api.get('/api/keywords/increment-usage');
-
-        const batches = [];
-        for (let i = 0; i < keywordList.length; i += 5) {
-          batches.push(keywordList.slice(i, i + 5));
+        // 1) 배치 단위로 분리
+        const batches = []
+        for (let i = 0; i < list.length; i += 5) {
+          batches.push(list.slice(i, i + 5))
         }
 
-        for (let i = 0; i < batches.length; i++) {
-          const batch = batches[i];
-          const encoded = batch.join(',');
+        // 2) 첫 배치로 device 검증 + 승인 메시지 체크
+        const first = batches[0].join(',')
+        const resFirst = await api.get('/api/keywords', {
+          params: { hintKeyword: first, isFirst: true }
+        })
+        if (resFirst.data.approvalMessage) {
+          showDialog(resFirst.data.approvalMessage)  // ⚠️ 기기 불일치 메시지
+          return
+        }
+        // 3) 승인 통과했으면 사용량 증가
+        await api.get('/api/keywords/increment-usage')
+        // 4) 결과 처리
+        if (Array.isArray(resFirst.data.results)) {
+          keywords.value.push(...resFirst.data.results)
+          currentProgress.value += batches[0].length
+        }
 
+        // 5) 나머지 배치 순차 호출
+        for (let i = 1; i < batches.length; i++) {
+          const batch = batches[i].join(',')
           const res = await api.get('/api/keywords', {
-            params: {
-              hintKeyword: encoded,
-              isFirst: i === 0  // ✅ 첫 요청에만 true
-            }
-          });
-
+            params: { hintKeyword: batch, isFirst: false }
+          })
           if (res.data.approvalMessage) {
-            showDialog(res.data.approvalMessage);
-            keywords.value = [];
-            return;
+            showDialog(res.data.approvalMessage)
+            return
           }
-
-          if (res.data.results && Array.isArray(res.data.results)) {
-            keywords.value.push(...res.data.results);
-            currentProgress.value += batch.length;
+          if (Array.isArray(res.data.results)) {
+            keywords.value.push(...res.data.results)
+            currentProgress.value += batches[i].length
           }
         }
 
         if (keywords.value.length === 0) {
-          showDialog('검색 결과가 없습니다.');
+          showDialog('검색 결과가 없습니다.')
         }
-      } catch (err) {
-        const errorMsg =
-          err.response?.data?.error ||
-          err.response?.data?.message ||
-          '❌ 키워드 검색 실패. 다시 시도해주세요.';
-
-        showDialog(errorMsg);
-        console.error(err);
-      } finally {
-        loading.value = false;
+      }
+      catch (err) {
+        const msg = err.response?.data?.error
+          || err.response?.data?.message
+          || '❌ 키워드 검색 실패. 다시 시도해주세요.'
+        showDialog(msg)
+      }
+      finally {
+        loading.value = false
       }
     };
 

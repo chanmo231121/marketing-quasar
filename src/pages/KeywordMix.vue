@@ -200,6 +200,18 @@ export default {
         showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏')
         return
       }
+      const uuid = localStorage.getItem(`deviceId_${userStore.userInfo.id}`) || '-'
+
+// ✅ UUID 먼저 검증
+      try {
+        await api.get('/api/v1/keyword-mix/validate-device', {
+          headers: { 'X-Device-Id': uuid }
+        })
+      } catch (err) {
+        const msg = err.response?.data?.error || '❌ 기기 인증 오류'
+        showDialog(msg)
+        return
+      }
 
       if (userStore.userInfo.status === 'PENDING_REAPPROVAL') {
         showDialog('⛔ 기간만료! 재승인을 해주세요.')

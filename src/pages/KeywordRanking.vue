@@ -217,44 +217,62 @@ export default {
       loading.value = true
       currentProgress.value = 0
       totalKeywords.value = processedKeywords.length
-      limitExceeded = false  // ← 초기화
+      limitExceeded = false
 
       try {
-        const promises = processedKeywords.map((keyword, index) =>
-          api.post('/api/naver-ads/search', {
-            keywords: [keyword]
-          }, {
-            headers: {
-              'X-Is-First': index === 0
+        for (let i = 0; i < processedKeywords.length; i++) {
+          const keyword = processedKeywords[i]
+
+          try {
+            const res = await api.post('/api/naver-ads/search', {
+              keywords: [keyword]
+            }, {
+              headers: {
+                'X-Is-First': i === 0
+              }
+            })
+
+            // ✅ 서버 응답에 error로 기기 불일치 메시지가 있을 경우
+            if (res.data?.error?.includes('기기 불일치')) {
+              showDialog(res.data.error)
+              return
             }
-          }).then(res => {
+
             const data = res.data.data || []
             const failed = res.data.failedKeywords || []
+
             if (data.length === 0 || failed.includes(keyword)) {
               failedList.value.push(keyword)
               adsData.value[keyword] = []
             } else {
               adsData.value[keyword] = data
             }
+
             currentProgress.value++
-          }).catch(err => {
+
+          } catch (err) {
             currentProgress.value++
+
             const errorMsg = err.response?.data?.error
               || err.response?.data?.message
               || '❌ 처리 중 오류 발생'
-            // ← 사용량 초과 오류 감지
+
+            // ✅ 여기서도 기기 불일치 메시지 있을 경우 바로 return
+            if (errorMsg.includes('기기 불일치')) {
+              showDialog(errorMsg)
+              return
+            }
+
             if (errorMsg.includes('하루 최대')) {
               limitExceeded = true
             }
+
             showDialog(errorMsg)
             failedList.value.push(keyword)
             console.error(`${keyword} 처리 실패:`, err)
-          })
-        )
+          }
+        }
 
-        await Promise.all(promises)
-
-        // ← 수정된 부분: 사용량 초과가 아닐 때만 “데이터 없음” 메시지
         if (Object.values(adsData.value).every(arr => arr.length === 0)) {
           if (!limitExceeded) {
             showDialog('📭 키워드 데이터가 없습니다.')
@@ -275,6 +293,7 @@ export default {
             }
           })
         }
+
       } catch (err) {
         showDialog('❌ 키워드 처리 중 오류가 발생했습니다.')
         console.error('❌ 처리 실패:', err)
@@ -282,6 +301,7 @@ export default {
         loading.value = false
       }
     }
+
 
     const getNaverAdsData = (keyword) => {
       selectedKeyword.value = keyword
