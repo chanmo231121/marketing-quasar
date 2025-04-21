@@ -1,10 +1,37 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>Maglo - 키워드 단일 검색량 조회기</strong></h6>
-      <p>키워드의 조회수를 확인할 수 있는 키워드 단일 검색량 조회기입니다.</p>
-      <p>한 줄에 하나씩 키워드를 입력해주세요.</p>
+      <div v-if="isEditing">
+        <input v-model="bannerTitle" class="banner-input" placeholder="배너 제목" />
+        <textarea
+          v-model="bannerContent"
+          class="banner-textarea"
+          rows="4"
+          placeholder="배너 내용을 입력하세요 (줄바꿈 가능)"
+        ></textarea>
+        <div class="edit-actions">
+          <button class="save-btn" @click="saveBanner">저장</button>
+          <button class="cancel-btn" @click="cancelEdit">취소</button>
+        </div>
+      </div>
+      <div v-else>
+        <h6><strong>{{ bannerTitle }}</strong></h6>
+        <p class="banner-paragraph">
+          {{ bannerContent }}
+          <q-btn
+            v-if="userInfo?.role === 'DEV'"
+            icon="edit"
+            flat
+            round
+            dense
+            color="primary"
+            @click="startEdit"
+            class="inline-edit-btn"
+          />
+        </p>
+      </div>
     </div>
+
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
@@ -71,9 +98,11 @@
 </template>
 
 <script>
-import { ref, getCurrentInstance } from 'vue';
+import { ref, getCurrentInstance, onMounted } from 'vue';
 import { api } from 'boot/axios.js';
 import * as XLSX from 'xlsx';
+import { useUserStore } from 'stores/userStore';
+import { storeToRefs } from 'pinia';
 
 export default {
   setup() {
@@ -82,15 +111,50 @@ export default {
     const loading = ref(false);
     const currentProgress = ref(0);
     const totalKeywords = ref(0);
+
+    const bannerTitle = ref('');
+    const bannerContent = ref('');
+    const isEditing = ref(false);
+
+    const userStore = useUserStore();
+    const { userInfo } = storeToRefs(userStore);
+
     const { proxy } = getCurrentInstance();
 
     const showDialog = (msg) => {
-      proxy.$q.dialog({
-        title: '알림 📢',
-        message: msg,
-        ok: '확인'
-      });
+      proxy.$q.dialog({ title: '알림 📢', message: msg, ok: '확인' });
     };
+
+    const fetchBanner = async () => {
+      try {
+        const res = await api.get('/api/v1/banner', { params: { page: 'keyword-single' } });
+        bannerTitle.value = res.data.title;
+        bannerContent.value = res.data.description1;
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    const saveBanner = async () => {
+      try {
+        await api.put('/api/v1/banner/update', {
+          title: bannerTitle.value,
+          description1: bannerContent.value,
+          description2: '',
+        }, {
+          params: { page: 'keyword-single' },
+        });
+        isEditing.value = false;
+        showDialog('✅ 배너가 저장되었습니다.');
+      } catch (err) {
+        showDialog('❌ 배너 저장 실패');
+        console.error(err);
+      }
+    };
+
+    const startEdit = () => { isEditing.value = true; };
+    const cancelEdit = () => { isEditing.value = false; fetchBanner(); };
+    onMounted(fetchBanner);
 
     const fetchKeywords = async () => {
       const token = localStorage.getItem('accessToken');
@@ -127,13 +191,17 @@ export default {
           batches.push(keywordList.slice(i, i + 5));
         }
 
-        for (const batch of batches) {
+        for (let i = 0; i < batches.length; i++) {
+          const batch = batches[i];
           const encoded = batch.join(',');
+
           const res = await api.get('/api/keywords', {
-            params: { hintKeyword: encoded }
+            params: {
+              hintKeyword: encoded,
+              isFirst: i === 0  // ✅ 첫 요청에만 true
+            }
           });
 
-          // approvalMessage가 존재하면, 해당 메시지를 다이얼로그로 표시하고 나머지 처리를 중단합니다.
           if (res.data.approvalMessage) {
             showDialog(res.data.approvalMessage);
             keywords.value = [];
@@ -152,7 +220,7 @@ export default {
       } catch (err) {
         const errorMsg =
           err.response?.data?.error ||
-          err.response?.data?.message || // ✅ message도 확인하도록 추가
+          err.response?.data?.message ||
           '❌ 키워드 검색 실패. 다시 시도해주세요.';
 
         showDialog(errorMsg);
@@ -202,21 +270,47 @@ export default {
       fetchKeywords,
       clearInput,
       downloadExcel,
+      bannerTitle,
+      bannerContent,
+      isEditing,
+      saveBanner,
+      cancelEdit,
+      startEdit,
+      userInfo
     };
   }
 };
 </script>
 
 <style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  text-align: center;
-  color: #2c3e50;
-}
+#app { font-family:Avenir,Helvetica,Arial,sans-serif; text-align:center; color:#2c3e50 }
+* { font-family:'Nanum Gothic',sans-serif }
 
-* {
-  font-family: 'Nanum Gothic', sans-serif;
+.banner-paragraph {
+  white-space: pre-wrap;
 }
+.banner-input, .banner-textarea {
+  width: 100%;
+  font-size: 1em;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.edit-actions {
+  margin-top: 6px;
+}
+.edit-btn, .save-btn, .cancel-btn {
+  margin-right: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+.edit-btn { background: #1976D2; color: white; }
+.save-btn { background: #4CAF50; color: white; }
+.cancel-btn { background: #ccc; color: #333; }
 
 .main-container {
   width: 69.6%;
@@ -398,5 +492,15 @@ button.primary-btn:disabled {
   padding: 14px 12px;
   font-size: 14px;
   cursor: pointer;
+}
+.q-btn--flat.q-btn--dense.q-btn--round:hover {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.inline-edit-btn {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
 }
 </style>

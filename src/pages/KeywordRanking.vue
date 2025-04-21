@@ -1,10 +1,37 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>Maglo - 키워드 랭킹순위</strong></h6>
-      <p>키워드의 랭킹순위를 보수 있는 키워드 랭킹순위입니다.</p>
-      <p>한 줄에 하나씩 키워드를 입력하고 아래 키워드를 클릭해주세요.</p>
+      <div v-if="isEditing">
+        <input v-model="bannerTitle" class="banner-input" placeholder="배너 제목" />
+        <textarea
+          v-model="bannerContent"
+          class="banner-textarea"
+          rows="4"
+          placeholder="배너 내용을 입력하세요 (줄바꿈 가능)"
+        ></textarea>
+        <div class="edit-actions">
+          <button class="save-btn" @click="saveBanner">저장</button>
+          <button class="cancel-btn" @click="cancelEdit">취소</button>
+        </div>
+      </div>
+      <div v-else>
+        <h6><strong>{{ bannerTitle }}</strong></h6>
+        <p class="banner-paragraph">
+          {{ bannerContent }}
+          <q-btn
+            v-if="userInfo?.role === 'DEV'"
+            icon="edit"
+            flat
+            round
+            dense
+            color="primary"
+            @click="startEdit"
+            class="inline-edit-btn"
+          />
+        </p>
+      </div>
     </div>
+
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
@@ -27,7 +54,7 @@
       <div class="keyword_list">
         <div class="button-container">
           <button @click="downloadExcel" class="secondary-btn dense-btn excel-download-small-btn">
-            엘셀 다운로드(CSV)
+            엑셀 다운로드(CSV)
           </button>
           <button class="negative-btn dense-btn" @click="clearSearchResults" :disabled="loading || Object.keys(adsData).length === 0">
             검색 초기화
@@ -54,10 +81,10 @@
               <th colspan="3">MO</th>
             </tr>
             <tr>
-              <th>파매자</th>
+              <th>판매자</th>
               <th>제목</th>
               <th>URL</th>
-              <th>파매자</th>
+              <th>판매자</th>
               <th>제목</th>
               <th>URL</th>
             </tr>
@@ -89,128 +116,188 @@
   </div>
 </template>
 
+
 <script>
-import { Dialog } from 'quasar';
-import { api } from 'boot/axios.js';
-import * as XLSX from 'xlsx';
+import { api } from 'boot/axios.js'
+import * as XLSX from 'xlsx'
+import { onMounted, ref, getCurrentInstance } from 'vue'
+import { useUserStore } from 'stores/userStore'
+import { storeToRefs } from 'pinia'
 
 export default {
-  data() {
-    return {
-      keywordInput: '',
-      keywords: [],
-      adsData: {},
-      pcAdsData: [],
-      mobileAdsData: [],
-      combinedTableData: [],
-      loading: false,
-      error: '',
-      selectedKeyword: null,
-      currentProgress: 0,
-      totalKeywords: 0
-    };
-  },
-  methods: {
-    async processKeywords() {
-      const accessToken = localStorage.getItem('accessToken');
+  setup() {
+    const keywordInput = ref('')
+    const keywords = ref([])
+    const adsData = ref({})
+    const pcAdsData = ref([])
+    const mobileAdsData = ref([])
+    const combinedTableData = ref([])
+    const selectedKeyword = ref(null)
+    const loading = ref(false)
+    const currentProgress = ref(0)
+    const totalKeywords = ref(0)
+
+    // 배너 관련
+    const bannerTitle = ref('')
+    const bannerContent = ref('')
+    const isEditing = ref(false)
+
+    const { proxy } = getCurrentInstance()
+    const userStore = useUserStore()
+    const { userInfo } = storeToRefs(userStore)
+
+    const showDialog = (msg) => {
+      proxy.$q.dialog({ title: '알림 📢', message: msg, ok: '확인' })
+    }
+
+    const fetchBanner = async () => {
+      try {
+        const res = await api.get('/api/v1/banner', { params: { page: 'keyword-ranking' } })
+        bannerTitle.value = res.data.title
+        bannerContent.value = res.data.description1
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    const saveBanner = async () => {
+      try {
+        await api.put('/api/v1/banner/update', {
+          title: bannerTitle.value,
+          description1: bannerContent.value,
+          description2: ''
+        }, {
+          params: { page: 'keyword-ranking' }
+        })
+        isEditing.value = false
+        showDialog('✅ 배너가 저장되었습니다.')
+      } catch (err) {
+        showDialog('❌ 배너 저장 실패')
+        console.error(err)
+      }
+    }
+
+    const startEdit = () => { isEditing.value = true }
+    const cancelEdit = () => { isEditing.value = false; fetchBanner() }
+
+    const processKeywords = async () => {
+      const accessToken = localStorage.getItem('accessToken')
       if (!accessToken) {
-        this.showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏');
-        return;
+        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏')
+        return
       }
 
-      const processedKeywords = this.keywordInput
+      const processedKeywords = keywordInput.value
         .split('\n')
         .map(line => line.trim())
-        .filter(Boolean);
+        .filter(Boolean)
 
       if (processedKeywords.length > 100) {
-        this.showDialog('⚠️ 키워드는 최대 100개까지 입력 가능합니다.');
-        return;
+        showDialog('⚠️ 키워드는 최대 100개까지 입력 가능합니다.')
+        return
       }
 
-      this.keywords = processedKeywords;
-      this.adsData = {};
-      this.loading = true;
-      this.currentProgress = 0;
-      this.totalKeywords = processedKeywords.length;
+      keywords.value = processedKeywords
+      adsData.value = {}
+      loading.value = true
+      currentProgress.value = 0
+      totalKeywords.value = processedKeywords.length
 
       try {
-        const response = await api.get('/api/naver-ads/search', {
-          params: {
-            keywords: encodeURIComponent(processedKeywords.join('\n'))
-          }
+        const response = await api.post('/api/naver-ads/search', {
+          keywords: processedKeywords.join('\n')
         });
 
-        // 백엔드에서 approvalMessage가 포함되어 있을 경우, 해당 메시지를 표시하고 검색 결과를 초기화합니다.
         if (response.data?.approvalMessage) {
-          this.showDialog(response.data.approvalMessage);
-          this.adsData = {};
-          return;
+          showDialog(response.data.approvalMessage)
+          adsData.value = {}
+          return
         }
 
-        const grouped = {};
+        const grouped = {}
         for (const ad of response.data) {
-          if (!grouped[ad.Keyword]) grouped[ad.Keyword] = [];
-          grouped[ad.Keyword].push(ad);
+          if (!grouped[ad.Keyword]) grouped[ad.Keyword] = []
+          grouped[ad.Keyword].push(ad)
         }
-        this.adsData = grouped;
+        adsData.value = grouped
 
-        const allEmpty = Object.values(this.adsData).every(arr => arr.length === 0);
+        const allEmpty = Object.values(adsData.value).every(arr => arr.length === 0)
         if (!allEmpty) {
-          this.showDialog('✅ 모든 키워드 데이터를 가져왔습니다.');
+          showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
         }
       } catch (err) {
-        if (err.response?.status === 401) {
-          // 토큰 만료 등 별도 처리는 axios에서 자동 refresh 시키므로 안내 생략
-          return;
-        }
+        if (err.response?.status === 401) return
 
-        let errorMsg = '❌ 키워드 랭킹 조회 실패. 다시 시도해주세요.';
+        let errorMsg = '❌ 키워드 랭킹 조회 실패. 다시 시도해주세요.'
         if (err.response?.data?.message) {
-          errorMsg = ` ${err.response.data.message}`;
+          errorMsg = ` ${err.response.data.message}`
         } else if (err.response?.data?.error) {
-          errorMsg = ` ${err.response.data.error}`;
+          errorMsg = ` ${err.response.data.error}`
         } else if (err.message) {
-          errorMsg = ` ${err.message}`;
+          errorMsg = ` ${err.message}`
         }
 
-        this.showDialog(errorMsg);
-        console.error('❌ 랭킹 조회 에러:', err);
+        showDialog(errorMsg)
+        console.error('❌ 랭킹 조회 에러:', err)
       } finally {
-        this.loading = false;
+        loading.value = false
       }
-    },
+    }
 
-    getNaverAdsData(keyword) {
-      this.selectedKeyword = keyword;
-      const data = this.adsData[keyword];
+    const getNaverAdsData = (keyword) => {
+      selectedKeyword.value = keyword
+      const data = adsData.value[keyword]
       if (!data || data.length === 0) {
-        this.showDialog('😢 해당 키워드의 데이터가 없습니다.');
-        this.combinedTableData = [];
-        return;
+        showDialog('😢 해당 키워드의 데이터가 없습니다.')
+        combinedTableData.value = []
+        return
       }
 
-      this.pcAdsData = data.filter(ad => ad.Platform === 'PC');
-      this.mobileAdsData = data.filter(ad => ad.Platform === 'Mobile');
-      this.combineTableData();
-    },
+      pcAdsData.value = data.filter(ad => ad.Platform === 'PC')
+      mobileAdsData.value = data.filter(ad => ad.Platform === 'Mobile')
+      combineTableData()
+    }
 
-    combineTableData() {
-      const maxLength = Math.max(this.pcAdsData.length, this.mobileAdsData.length);
-      this.combinedTableData = Array.from({ length: maxLength }, (_, i) => ({
-        pc: this.pcAdsData[i] || {},
-        mobile: this.mobileAdsData[i] || {}
-      }));
-    },
+    const combineTableData = () => {
+      const maxLength = Math.max(pcAdsData.value.length, mobileAdsData.value.length)
+      combinedTableData.value = Array.from({ length: maxLength }, (_, i) => ({
+        pc: pcAdsData.value[i] || {},
+        mobile: mobileAdsData.value[i] || {}
+      }))
+    }
 
-    downloadExcel() {
-      const allData = Object.values(this.adsData).flat();
+    const resetAll = () => {
+      keywordInput.value = ''
+      keywords.value = []
+      adsData.value = {}
+      pcAdsData.value = []
+      mobileAdsData.value = []
+      combinedTableData.value = []
+      selectedKeyword.value = null
+      currentProgress.value = 0
+      totalKeywords.value = 0
+    }
+
+    const clearSearchResults = () => {
+      if (Object.keys(adsData.value).length === 0) {
+        showDialog('📭 삭제할 데이터가 없습니다.')
+        return
+      }
+      adsData.value = {}
+      pcAdsData.value = []
+      mobileAdsData.value = []
+      combinedTableData.value = []
+      selectedKeyword.value = null
+    }
+
+    const downloadExcel = () => {
+      const allData = Object.values(adsData.value).flat()
       if (allData.length === 0) {
-        this.showDialog('📂 다운로드할 데이터가 없습니다.');
-        return;
+        showDialog('📂 다운로드할 데이터가 없습니다.')
+        return
       }
 
-      const time = new Date().toLocaleTimeString();
+      const time = new Date().toLocaleTimeString()
       const wsData = allData.map(ad => ({
         시간: time,
         키워드: ad.Keyword,
@@ -221,45 +308,43 @@ export default {
         부제목: ad.Subtitle,
         기간: ad.Period,
         URL: ad['Main URL']
-      }));
+      }))
 
-      const ws = XLSX.utils.json_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '광고 데이터');
-      XLSX.writeFile(wb, 'naver_ads_data.xlsx');
-    },
+      const ws = XLSX.utils.json_to_sheet(wsData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '광고 데이터')
+      XLSX.writeFile(wb, 'naver_ads_data.xlsx')
+    }
 
-    resetAll() {
-      this.keywordInput = '';
-      this.keywords = [];
-      this.adsData = {};
-      this.combinedTableData = [];
-      this.selectedKeyword = null;
-      this.currentProgress = 0;
-      this.totalKeywords = 0;
-    },
+    onMounted(fetchBanner)
 
-    clearSearchResults() {
-      if (Object.keys(this.adsData).length === 0) {
-        this.showDialog('📭 삭제할 데이터가 없습니다.');
-        return;
-      }
-      this.adsData = {};
-      this.pcAdsData = [];
-      this.mobileAdsData = [];
-      this.combinedTableData = [];
-      this.selectedKeyword = null;
-    },
-
-    showDialog(message) {
-      Dialog.create({
-        title: '알림 📢',
-        message,
-        ok: '확인'
-      });
+    return {
+      keywordInput,
+      keywords,
+      adsData,
+      pcAdsData,
+      mobileAdsData,
+      combinedTableData,
+      selectedKeyword,
+      loading,
+      currentProgress,
+      totalKeywords,
+      processKeywords,
+      getNaverAdsData,
+      combineTableData,
+      resetAll,
+      clearSearchResults,
+      downloadExcel,
+      bannerTitle,
+      bannerContent,
+      isEditing,
+      saveBanner,
+      cancelEdit,
+      startEdit,
+      userInfo
     }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -278,8 +363,7 @@ export default {
   margin: 250px auto 200px auto;
   text-align: center;
   position: relative;
-  padding-bottom: 120px; /* ✅ 여유 공간 추가 */
-
+  padding-bottom: 120px;
 }
 
 .input-container {
@@ -452,7 +536,7 @@ table td {
   cursor: pointer;
 }
 
-/* 그리드 레이아웃: 한 줄에 6개의 키워드 버튼 표시 */
+/* 키워드 버튼 영역 */
 .keyword-list-container {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -478,7 +562,6 @@ table td {
   background-color: #007B9E;
 }
 
-/* 선택된 버튼에 적용할 활성화 스타일 */
 .keyword-list-container button.active {
   background-color: #FF9800;
 }
@@ -497,5 +580,48 @@ table td {
 
 .url-column span {
   color: #ccc;
+}
+
+/* 배너 수정 관련 */
+.banner-paragraph {
+  white-space: pre-wrap;
+}
+.banner-input,
+.banner-textarea {
+  width: 100%;
+  font-size: 1em;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.edit-actions {
+  margin-top: 6px;
+}
+.save-btn,
+.cancel-btn {
+  margin-right: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+.save-btn {
+  background: #4CAF50;
+  color: white;
+}
+.cancel-btn {
+  background: #ccc;
+  color: #333;
+}
+.q-btn--flat.q-btn--dense.q-btn--round:hover {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.inline-edit-btn {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
 }
 </style>

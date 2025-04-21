@@ -1,10 +1,37 @@
 <template>
   <div id="app">
     <div class="content-below-banner">
-      <h6><strong>Maglo - 키워드 연관 검색량 조회기</strong></h6>
-      <p>키워드의 조회수를 확인 할 수 있는 키워드 연관 검색량 조회기입니다.</p>
-      <p>한줄에 하나씩 키워드를 입력해주세요.</p>
+      <div v-if="isEditing">
+        <input v-model="bannerTitle" class="banner-input" placeholder="배너 제목" />
+        <textarea
+          v-model="bannerContent"
+          class="banner-textarea"
+          rows="4"
+          placeholder="배너 내용을 입력하세요 (줄바꿈 가능)"
+        ></textarea>
+        <div class="edit-actions">
+          <button class="save-btn" @click="saveBanner">저장</button>
+          <button class="cancel-btn" @click="cancelEdit">취소</button>
+        </div>
+      </div>
+      <div v-else>
+        <h6><strong>{{ bannerTitle }}</strong></h6>
+        <p class="banner-paragraph">
+          {{ bannerContent }}
+          <q-btn
+            v-if="userInfo?.role === 'DEV'"
+            icon="edit"
+            flat
+            round
+            dense
+            color="primary"
+            @click="startEdit"
+            class="inline-edit-btn"
+          />
+        </p>
+      </div>
     </div>
+
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
@@ -96,8 +123,11 @@
   </div>
 </template>
 
+
 <script>
-import { ref, getCurrentInstance } from 'vue';
+import { ref, getCurrentInstance, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useUserStore } from 'stores/userStore';
 import { api } from 'boot/axios.js';
 import * as XLSX from 'xlsx';
 
@@ -108,7 +138,16 @@ export default {
     const loading = ref(false);
     const error = ref('');
     const selectAll = ref(false);
+
     const { proxy } = getCurrentInstance();
+
+    const userStore = useUserStore();
+    const { userInfo } = storeToRefs(userStore);
+
+    // ✅ 배너 관련 상태
+    const bannerTitle = ref('');
+    const bannerContent = ref('');
+    const isEditing = ref(false);
 
     const showDialog = (msg) => {
       proxy.$q.dialog({
@@ -116,6 +155,48 @@ export default {
         message: msg,
         ok: '확인'
       });
+    };
+
+    const fetchBanner = async () => {
+      try {
+        const res = await api.get('/api/v1/banner', {
+          params: { page: 'keyword-related' }
+        });
+        bannerTitle.value = res.data.title;
+        bannerContent.value = res.data.description1;
+      } catch (err) {
+        console.error('배너 로딩 실패:', err);
+      }
+    };
+
+    const saveBanner = async () => {
+      try {
+        await api.put(
+          '/api/v1/banner/update',
+          {
+            title: bannerTitle.value,
+            description1: bannerContent.value,
+            description2: ''
+          },
+          {
+            params: { page: 'keyword-related' }
+          }
+        );
+        isEditing.value = false;
+        showDialog('✅ 배너가 저장되었습니다.');
+      } catch (err) {
+        console.error('배너 저장 실패:', err);
+        showDialog('❌ 배너 저장 실패');
+      }
+    };
+
+    const startEdit = () => {
+      isEditing.value = true;
+    };
+
+    const cancelEdit = () => {
+      isEditing.value = false;
+      fetchBanner();
     };
 
     const toggleSelectAll = () => {
@@ -131,7 +212,10 @@ export default {
         return;
       }
 
-      let keywordList = hintKeyword.value.split('\n').map(k => k.trim()).filter(k => k.length);
+      let keywordList = hintKeyword.value
+        .split('\n')
+        .map((k) => k.trim())
+        .filter((k) => k.length);
 
       if (!keywordList.length) {
         showDialog('📝 키워드를 입력해주세요.');
@@ -150,7 +234,6 @@ export default {
           params: { hintKeyword: keywordList.join(',') }
         });
 
-        // 백엔드에서 approvalMessage가 있을 경우 해당 메시지를 다이얼로그로 표시하고 검색 결과를 초기화합니다.
         if (response.data?.approvalMessage) {
           showDialog(response.data.approvalMessage);
           keywords.value = [];
@@ -158,18 +241,16 @@ export default {
         }
 
         if (Array.isArray(response.data) && response.data.length) {
-          keywords.value = response.data.map(k => ({ ...k, checked: false }));
+          keywords.value = response.data.map((k) => ({ ...k, checked: false }));
         } else {
           showDialog('😢 연관된 키워드가 없습니다.');
         }
       } catch (err) {
         console.error(err);
-
         const errorMessage =
-          err.response?.data?.error ||       // 🔍 기존 키
-          err.response?.data?.message ||     // ✅ 추가된 메시지 키
+          err.response?.data?.error ||
+          err.response?.data?.message ||
           '❌ 키워드 불러오기 실패. 다시 시도해주세요.';
-
         showDialog(errorMessage);
       } finally {
         loading.value = false;
@@ -204,7 +285,10 @@ export default {
       }
     };
 
+    onMounted(fetchBanner);
+
     return {
+      // 기존 로직
       hintKeyword,
       keywords,
       loading,
@@ -214,7 +298,15 @@ export default {
       fetchKeywords,
       clearSearchResults,
       clearInput,
-      downloadExcel
+      downloadExcel,
+      // 배너
+      bannerTitle,
+      bannerContent,
+      isEditing,
+      startEdit,
+      cancelEdit,
+      saveBanner,
+      userInfo
     };
   }
 };
@@ -236,8 +328,7 @@ export default {
   margin: 250px auto 200px auto;
   text-align: center;
   position: relative;
-  padding-bottom: 120px; /* ✅ 여유 공간 추가 */
-
+  padding-bottom: 120px;
 }
 
 .input-container {
@@ -355,20 +446,6 @@ table td {
   min-width: 100px;
 }
 
-.content-below-banner {
-  position: relative;
-  top: 200px;
-  left: 0;
-  width: 100%;
-  padding: 10px;
-  font-family: Arial, sans-serif;
-  color: #333;
-  text-align: left;
-  max-width: 1000px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .primary-btn {
   background-color: #1976D2;
   color: white;
@@ -407,4 +484,72 @@ table td {
   font-size: 14px;
   cursor: pointer;
 }
+
+/* ✅ 배너 수정 관련 */
+.content-below-banner {
+  position: relative;
+  top: 200px;
+  left: 0;
+  width: 100%;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  color: #333;
+  text-align: left;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 1000;
+}
+
+.banner-paragraph {
+  white-space: pre-wrap;
+}
+
+.banner-input,
+.banner-textarea {
+  width: 100%;
+  font-size: 1em;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.edit-actions {
+  margin-top: 6px;
+}
+
+.save-btn,
+.cancel-btn {
+  margin-right: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+.save-btn {
+  background: #4CAF50;
+  color: white;
+}
+
+.cancel-btn {
+  background: #ccc;
+  color: #333;
+}
+
+.q-btn--flat.q-btn--dense.q-btn--round:hover {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.inline-edit-btn {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  pointer-events: auto;
+  z-index: 1001;
+}
 </style>
+
