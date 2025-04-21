@@ -46,14 +46,13 @@
               <template v-if="loading">
                 <q-spinner color="white" size="20px" />
                 <span style="color: white; font-size: 14px;">
-        {{ currentProgress }}/{{ totalKeywords }}
-      </span>
+                  {{ currentProgress }}/{{ totalKeywords }}
+                </span>
               </template>
               <template v-else>
                 검색
               </template>
             </button>
-
             <button
               class="negative-btn dense-btn"
               @click="resetAll"
@@ -130,7 +129,6 @@
   </div>
 </template>
 
-
 <script>
 import { api } from 'boot/axios.js'
 import * as XLSX from 'xlsx'
@@ -151,6 +149,8 @@ export default {
     const currentProgress = ref(0)
     const totalKeywords = ref(0)
     const failedList = ref([])
+    let limitExceeded = false  // ← 추가: 사용량 초과 플래그
+
     // 배너 관련
     const bannerTitle = ref('')
     const bannerContent = ref('')
@@ -217,41 +217,48 @@ export default {
       loading.value = true
       currentProgress.value = 0
       totalKeywords.value = processedKeywords.length
+      limitExceeded = false  // ← 초기화
 
       try {
-        const response = await api.post('/api/naver-ads/search', {
-          keywords: processedKeywords
-        })
-
-        const allData = response.data.data || []
-        const failedKeywords = response.data.failedKeywords || []
-
-        // ✅ 키워드별로 그룹핑
-        const grouped = allData.reduce((acc, ad) => {
-          const key = ad.Keyword
-          if (!acc[key]) acc[key] = []
-          acc[key].push(ad)
-          return acc
-        }, {})
-
-        // ✅ 진행률과 함께 하나씩 처리 (프론트에서 직접)
-        for (let i = 0; i < processedKeywords.length; i++) {
-          const keyword = processedKeywords[i]
-          const data = grouped[keyword] || []
-
-          if (data.length === 0 || failedKeywords.includes(keyword)) {
+        const promises = processedKeywords.map((keyword, index) =>
+          api.post('/api/naver-ads/search', {
+            keywords: [keyword]
+          }, {
+            headers: {
+              'X-Is-First': index === 0
+            }
+          }).then(res => {
+            const data = res.data.data || []
+            const failed = res.data.failedKeywords || []
+            if (data.length === 0 || failed.includes(keyword)) {
+              failedList.value.push(keyword)
+              adsData.value[keyword] = []
+            } else {
+              adsData.value[keyword] = data
+            }
+            currentProgress.value++
+          }).catch(err => {
+            currentProgress.value++
+            const errorMsg = err.response?.data?.error
+              || err.response?.data?.message
+              || '❌ 처리 중 오류 발생'
+            // ← 사용량 초과 오류 감지
+            if (errorMsg.includes('하루 최대')) {
+              limitExceeded = true
+            }
+            showDialog(errorMsg)
             failedList.value.push(keyword)
-            adsData.value[keyword] = []
-          } else {
-            adsData.value[keyword] = data
-          }
+            console.error(`${keyword} 처리 실패:`, err)
+          })
+        )
 
-          currentProgress.value = i + 1
-          await new Promise(resolve => setTimeout(resolve, 20)) // 👀 딜레이로 처리 진행 느낌 줌
-        }
+        await Promise.all(promises)
 
+        // ← 수정된 부분: 사용량 초과가 아닐 때만 “데이터 없음” 메시지
         if (Object.values(adsData.value).every(arr => arr.length === 0)) {
-          showDialog('📭 키워드 데이터가 없습니다.')
+          if (!limitExceeded) {
+            showDialog('📭 키워드 데이터가 없습니다.')
+          }
         } else {
           proxy.$q.dialog({
             title: '알림 📢',
@@ -264,16 +271,10 @@ export default {
               const message = count === 1
                 ? `📭 '${first}' 키워드는 광고 데이터가 없습니다.`
                 : `📭 '${first}' 외 ${count - 1}개의 키워드는 광고 데이터가 없습니다.`
-
-              proxy.$q.dialog({
-                title: '알림 📢',
-                message,
-                ok: '확인'
-              })
+              proxy.$q.dialog({ title: '알림 📢', message, ok: '확인' })
             }
           })
         }
-
       } catch (err) {
         showDialog('❌ 키워드 처리 중 오류가 발생했습니다.')
         console.error('❌ 처리 실패:', err)
@@ -338,8 +339,6 @@ export default {
       }
 
       const time = new Date().toLocaleTimeString()
-
-      // ✅ 광고 데이터가 있는 키워드 시트
       const wsData = allData.map(ad => ({
         시간: time,
         키워드: ad.Keyword,
@@ -353,13 +352,10 @@ export default {
       }))
 
       const wb = XLSX.utils.book_new()
-
       if (wsData.length > 0) {
         const ws = XLSX.utils.json_to_sheet(wsData)
         XLSX.utils.book_append_sheet(wb, ws, '광고 데이터')
       }
-
-      // ✅ 광고 데이터가 없는 키워드 시트
       if (failedKeywords.length > 0) {
         const noAdSheetData = failedKeywords.map(keyword => ({
           시간: time,
@@ -369,7 +365,6 @@ export default {
         const wsFail = XLSX.utils.json_to_sheet(noAdSheetData)
         XLSX.utils.book_append_sheet(wb, wsFail, '광고 없음 키워드')
       }
-
       XLSX.writeFile(wb, 'naver_ads_data.xlsx')
     }
 
