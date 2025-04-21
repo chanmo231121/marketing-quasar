@@ -41,10 +41,24 @@
               @click="processKeywords"
               :disabled="loading || keywordInput.trim() === ''"
               class="primary-btn dense-btn"
+              style="position: relative; display: flex; justify-content: center; align-items: center; gap: 8px;"
             >
-              {{ loading ? `불러오는 중 ${currentProgress}/${totalKeywords}` : '검색' }}
+              <template v-if="loading">
+                <q-spinner color="white" size="20px" />
+                <span style="color: white; font-size: 14px;">
+        {{ currentProgress }}/{{ totalKeywords }}
+      </span>
+              </template>
+              <template v-else>
+                검색
+              </template>
             </button>
-            <button class="negative-btn dense-btn" @click="resetAll" :disabled="loading || keywordInput === ''">
+
+            <button
+              class="negative-btn dense-btn"
+              @click="resetAll"
+              :disabled="loading || keywordInput === ''"
+            >
               키워드 초기화
             </button>
           </div>
@@ -136,7 +150,7 @@ export default {
     const loading = ref(false)
     const currentProgress = ref(0)
     const totalKeywords = ref(0)
-
+    const failedList = ref([])
     // 배너 관련
     const bannerTitle = ref('')
     const bannerContent = ref('')
@@ -199,44 +213,65 @@ export default {
 
       keywords.value = processedKeywords
       adsData.value = {}
+      failedList.value = []
       loading.value = true
       currentProgress.value = 0
       totalKeywords.value = processedKeywords.length
-      const hadError = ref(false)
 
       try {
-        await Promise.allSettled(
-          processedKeywords.map(keyword =>
-            api.post('/api/naver-ads/search', { keywords: keyword })
-              .then(res => {
-                const data = res.data || []
-                if (!adsData.value[keyword]) adsData.value[keyword] = []
-                adsData.value[keyword].push(...data)
-              })
-              .catch(err => {
-                hadError.value = true
-                const errorMessage = err?.response?.data?.error
-                if (errorMessage) {
-                  showDialog(errorMessage)
-                } else {
-                  showDialog(`❌ ${keyword} 처리 실패`)
-                }
-                console.error(`❌ ${keyword} 처리 실패`, err)
-                adsData.value[keyword] = []
-              })
-              .finally(() => {
-                currentProgress.value++
-              })
-          )
-        )
+        const response = await api.post('/api/naver-ads/search', {
+          keywords: processedKeywords
+        })
 
-        if (!hadError.value) {
-          const allEmpty = Object.values(adsData.value).every(arr => arr.length === 0)
-          if (!allEmpty) {
-            showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+        const allData = response.data.data || []
+        const failedKeywords = response.data.failedKeywords || []
+
+        // ✅ 키워드별로 그룹핑
+        const grouped = allData.reduce((acc, ad) => {
+          const key = ad.Keyword
+          if (!acc[key]) acc[key] = []
+          acc[key].push(ad)
+          return acc
+        }, {})
+
+        // ✅ 진행률과 함께 하나씩 처리 (프론트에서 직접)
+        for (let i = 0; i < processedKeywords.length; i++) {
+          const keyword = processedKeywords[i]
+          const data = grouped[keyword] || []
+
+          if (data.length === 0 || failedKeywords.includes(keyword)) {
+            failedList.value.push(keyword)
+            adsData.value[keyword] = []
           } else {
-            showDialog('📭 키워드 데이터가 없습니다.')
+            adsData.value[keyword] = data
           }
+
+          currentProgress.value = i + 1
+          await new Promise(resolve => setTimeout(resolve, 20)) // 👀 딜레이로 처리 진행 느낌 줌
+        }
+
+        if (Object.values(adsData.value).every(arr => arr.length === 0)) {
+          showDialog('📭 키워드 데이터가 없습니다.')
+        } else {
+          proxy.$q.dialog({
+            title: '알림 📢',
+            message: '✅ 모든 키워드 데이터를 가져왔습니다.',
+            ok: '확인'
+          }).onOk(() => {
+            if (failedList.value.length > 0) {
+              const first = failedList.value[0]
+              const count = failedList.value.length
+              const message = count === 1
+                ? `📭 '${first}' 키워드는 광고 데이터가 없습니다.`
+                : `📭 '${first}' 외 ${count - 1}개의 키워드는 광고 데이터가 없습니다.`
+
+              proxy.$q.dialog({
+                title: '알림 📢',
+                message,
+                ok: '확인'
+              })
+            }
+          })
         }
 
       } catch (err) {
@@ -295,12 +330,16 @@ export default {
 
     const downloadExcel = () => {
       const allData = Object.values(adsData.value).flat()
-      if (allData.length === 0) {
+      const failedKeywords = failedList.value
+
+      if (allData.length === 0 && failedKeywords.length === 0) {
         showDialog('📂 다운로드할 데이터가 없습니다.')
         return
       }
 
       const time = new Date().toLocaleTimeString()
+
+      // ✅ 광고 데이터가 있는 키워드 시트
       const wsData = allData.map(ad => ({
         시간: time,
         키워드: ad.Keyword,
@@ -310,12 +349,27 @@ export default {
         제목: ad.Title,
         부제목: ad.Subtitle,
         기간: ad.Period,
-        URL: ad['Main URL']
+        URL: ad['Main URL'] || '-'
       }))
 
-      const ws = XLSX.utils.json_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '광고 데이터')
+
+      if (wsData.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(wsData)
+        XLSX.utils.book_append_sheet(wb, ws, '광고 데이터')
+      }
+
+      // ✅ 광고 데이터가 없는 키워드 시트
+      if (failedKeywords.length > 0) {
+        const noAdSheetData = failedKeywords.map(keyword => ({
+          시간: time,
+          키워드: keyword,
+          비고: '광고 데이터 없음'
+        }))
+        const wsFail = XLSX.utils.json_to_sheet(noAdSheetData)
+        XLSX.utils.book_append_sheet(wb, wsFail, '광고 없음 키워드')
+      }
+
       XLSX.writeFile(wb, 'naver_ads_data.xlsx')
     }
 

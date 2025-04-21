@@ -44,10 +44,27 @@
             <button
               @click="fetchKeywords"
               :disabled="loading || hintKeyword.trim() === ''"
-              class="primary-btn dense-btn">
-              {{ loading ? `불러오는 중 ${currentProgress}/${totalKeywords}` : '검색' }}
+              class="primary-btn dense-btn"
+              style="display: flex; align-items: center; justify-content: center; gap: 8px;"
+            >
+              <template v-if="loading">
+                <q-spinner color="white" size="20px" />
+                <span style="color: white; font-size: 14px;">
+        {{ currentProgress }}/{{ totalKeywords }}
+      </span>
+              </template>
+              <template v-else>
+                검색
+              </template>
             </button>
-            <button class="negative-btn dense-btn" @click="clearInput" :disabled="loading || hintKeyword === ''">키워드 초기화</button>
+
+            <button
+              class="negative-btn dense-btn"
+              @click="clearInput"
+              :disabled="loading || hintKeyword === ''"
+            >
+              키워드 초기화
+            </button>
           </div>
         </div>
       </div>
