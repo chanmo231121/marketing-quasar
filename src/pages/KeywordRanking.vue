@@ -219,87 +219,75 @@ export default {
       totalKeywords.value = processedKeywords.length
       limitExceeded = false
 
-      try {
-        for (let i = 0; i < processedKeywords.length; i++) {
-          const keyword = processedKeywords[i]
+      // ✅ 각 요청을 비동기적으로 처리하면서 진행률 업데이트
+      processedKeywords.forEach((keyword, index) => {
+        api.post('/api/naver-ads/search', {
+          keywords: [keyword]
+        }, {
+          headers: {
+            'X-Is-First': index === 0,
+            'X-Device-Id': localStorage.getItem(`deviceId_${userInfo.value.id}`) || ''
+          }
+        }).then(res => {
+          if (res.data?.error?.includes('기기 불일치')) {
+            showDialog(res.data.error)
+            return
+          }
 
-          try {
-            const res = await api.post('/api/naver-ads/search', {
-              keywords: [keyword]
-            }, {
-              headers: {
-                'X-Is-First': i === 0
-              }
-            })
+          const data = res.data.data || []
+          const failed = res.data.failedKeywords || []
 
-            // ✅ 서버 응답에 error로 기기 불일치 메시지가 있을 경우
-            if (res.data?.error?.includes('기기 불일치')) {
-              showDialog(res.data.error)
-              return
-            }
-
-            const data = res.data.data || []
-            const failed = res.data.failedKeywords || []
-
-            if (data.length === 0 || failed.includes(keyword)) {
-              failedList.value.push(keyword)
-              adsData.value[keyword] = []
-            } else {
-              adsData.value[keyword] = data
-            }
-
-            currentProgress.value++
-
-          } catch (err) {
-            currentProgress.value++
-
-            const errorMsg = err.response?.data?.error
-              || err.response?.data?.message
-              || '❌ 처리 중 오류 발생'
-
-            // ✅ 여기서도 기기 불일치 메시지 있을 경우 바로 return
-            if (errorMsg.includes('기기 불일치')) {
-              showDialog(errorMsg)
-              return
-            }
-
-            if (errorMsg.includes('하루 최대')) {
-              limitExceeded = true
-            }
-
-            showDialog(errorMsg)
+          if (data.length === 0 || failed.includes(keyword)) {
             failedList.value.push(keyword)
-            console.error(`${keyword} 처리 실패:`, err)
+            adsData.value[keyword] = []
+          } else {
+            adsData.value[keyword] = data
           }
-        }
+        }).catch(err => {
+          const errorMsg = err?.response?.data?.error || '❌ 처리 중 오류 발생'
 
-        if (Object.values(adsData.value).every(arr => arr.length === 0)) {
-          if (!limitExceeded) {
-            showDialog('📭 키워드 데이터가 없습니다.')
+          if (errorMsg.includes('기기 불일치')) {
+            showDialog(errorMsg)
+            return
           }
-        } else {
-          proxy.$q.dialog({
-            title: '알림 📢',
-            message: '✅ 모든 키워드 데이터를 가져왔습니다.',
-            ok: '확인'
-          }).onOk(() => {
-            if (failedList.value.length > 0) {
-              const first = failedList.value[0]
-              const count = failedList.value.length
-              const message = count === 1
-                ? `📭 '${first}' 키워드는 광고 데이터가 없습니다.`
-                : `📭 '${first}' 외 ${count - 1}개의 키워드는 광고 데이터가 없습니다.`
-              proxy.$q.dialog({ title: '알림 📢', message, ok: '확인' })
+          if (errorMsg.includes('하루 최대')) {
+            limitExceeded = true
+          }
+
+          failedList.value.push(keyword)
+          adsData.value[keyword] = []
+          showDialog(errorMsg)
+          console.error(`${keyword} 처리 실패:`, err)
+        }).finally(() => {
+          currentProgress.value++
+
+          // ✅ 모든 키워드 처리 완료 후 한 번만 dialog
+          if (currentProgress.value === processedKeywords.length) {
+            loading.value = false
+
+            if (Object.values(adsData.value).every(arr => arr.length === 0)) {
+              if (!limitExceeded) {
+                showDialog('📭 키워드 데이터가 없습니다.')
+              }
+            } else {
+              proxy.$q.dialog({
+                title: '알림 📢',
+                message: '✅ 모든 키워드 데이터를 가져왔습니다.',
+                ok: '확인'
+              }).onOk(() => {
+                if (failedList.value.length > 0) {
+                  const first = failedList.value[0]
+                  const count = failedList.value.length
+                  const message = count === 1
+                    ? `📭 '${first}' 키워드는 광고 데이터가 없습니다.`
+                    : `📭 '${first}' 외 ${count - 1}개의 키워드는 광고 데이터가 없습니다.`
+                  proxy.$q.dialog({ title: '알림 📢', message, ok: '확인' })
+                }
+              })
             }
-          })
-        }
-
-      } catch (err) {
-        showDialog('❌ 키워드 처리 중 오류가 발생했습니다.')
-        console.error('❌ 처리 실패:', err)
-      } finally {
-        loading.value = false
-      }
+          }
+        })
+      })
     }
 
 

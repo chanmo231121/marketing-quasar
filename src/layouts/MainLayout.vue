@@ -64,7 +64,7 @@
 
         <!-- 🔸 오른쪽: 사용자 정보 및 기기 승인 -->
         <div class="column items-end">
-          <div class="row q-gutter-xs items-center">
+          <div class="row q-gutter-xs q-mt-md items-center">
             <template v-if="!isLoggedIn">
               <q-btn to="/login" label="Login" flat dense class="text-white" />
               <q-btn to="/signup" label="Signup" flat dense class="text-white" />
@@ -76,13 +76,41 @@
             </template>
           </div>
 
-          <div v-if="isLoggedIn" class="row q-gutter-xs q-mt-xs">
-            <q-btn icon="vpn_key" label="기기승인요청" flat dense color="yellow" class="bg-grey-9" @click="requestDeviceApproval"  />
+          <div v-if="isLoggedIn" class="row q-gutter-xs q-mt-xs items-center">
+            <q-chip
+              clickable
+              @click="requestDeviceApproval"
+              icon="vpn_key"
+              color="amber"
+              text-color="black"
+              size="md"
+              dense
+              class="text-weight-medium"
+            >
+              기기승인요청
+            </q-chip>
 
-            <q-btn :label="`승인상태: ${userInfo.status === 'NORMAL' ? '승인완료' : '미승인'}`"
-                   flat dense color="green" class="bg-grey-9" />
-            <q-btn :label="`만료일: ${userInfo.approvedUntil || '없음'}`"
-                   flat dense color="orange" class="bg-grey-9" />
+            <q-chip
+              icon="check_circle"
+              color="green-4"
+              text-color="white"
+              size="md"
+              dense
+              class="text-weight-medium no-pointer-events"
+            >
+              승인상태: {{ userInfo.status === 'NORMAL' ? '승인완료' : '미승인' }}
+            </q-chip>
+
+            <q-chip
+              icon="event"
+              color="orange-4"
+              text-color="white"
+              size="md"
+              dense
+              class="text-weight-medium no-pointer-events"
+            >
+              만료일: {{ userInfo.approvedUntil || '없음' }}
+            </q-chip>
           </div>
         </div>
       </q-toolbar>
@@ -377,6 +405,9 @@ export default {
 /* Maglo 필기체 적용 */
 .handwriting {
   font-family: 'Pacifico', cursive;
+}
+.no-pointer-events {
+  pointer-events: none;
 }
 
 
