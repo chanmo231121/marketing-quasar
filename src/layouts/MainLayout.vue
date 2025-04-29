@@ -109,7 +109,11 @@
       <q-route-tab to="/ranking-search" class="custom-tab">
         <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
       </q-route-tab>
-        <q-route-tab to="/shopping-ranking" class="custom-tab">
+        <q-route-tab
+          to="/shopping-ranking"
+          class="custom-tab"
+          v-if="userInfo.role === 'DEV'"
+        >
           <q-icon name="shopping_cart" size="20px" class="tab-icon" /> 네이버 쇼핑순위
         </q-route-tab>
         <q-route-tab to="/notices" class="custom-tab">
