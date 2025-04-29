@@ -373,6 +373,30 @@
               <div>오늘 사용: {{ selectedUser?.rankingSearchUsed ?? '-' }}회</div>
               <q-btn dense flat color="negative" label="초기화" size="sm" @click="resetUsage('ranking')" />
             </div>
+
+            <div class="detail-item">
+              <strong>🛒 쇼핑 검색</strong>
+              <q-checkbox
+                v-model="selectedUser.canUseShoppingSearch"
+                @update:model-value="v => updateFeatureUsage('shopping', v)"
+                label="사용 여부"
+              />
+              <div>{{ selectedUser.canUseShoppingSearch ? '✅ 가능' : '❌ 불가' }}</div>
+              <div>
+                일일 제한:
+                <q-input
+                  v-model.number="selectedUser.shoppingSearchLimit"
+                  type="number"
+                  dense
+                  outlined
+                  style="width: 100px"
+                  @blur="updateSearchLimit('shopping')"
+                />회
+              </div>
+              <div>오늘 사용: {{ selectedUser?.shoppingSearchUsed ?? '-' }}회</div>
+              <q-btn dense flat color="negative" label="초기화" size="sm" @click="resetUsage('shopping')" />
+            </div>
+
             <div class="detail-item">
               <strong>🔁 연관검색</strong>
               <q-checkbox
@@ -680,7 +704,6 @@ async function approveAdmin(userId) {
   const user = allUsers.value.find(u => u.id === userId)
   const newRole = user.editableRole || user.role
 
-
   // ✅ ADMIN → PRO 강등 시 만료일 7일 설정
   const payload = { role: newRole }
   if (user.originalRole === 'ADMIN' && newRole === 'PRO') {
@@ -695,7 +718,6 @@ async function approveAdmin(userId) {
   await fetchAllUsers()
   $q.dialog({ title: '✅ 승인 완료', message: '관리자 역할이 업데이트되었습니다.' })
 }
-
 
 
 function deleteAdmin(userId) {
@@ -819,13 +841,20 @@ async function resetUsage(type) {
 }
 async function updateSearchLimit(type) {
   if (!selectedUser.value?.id) return
-  const limit =
-    type === 'single' ? selectedUser.value.singleSearchLimit : selectedUser.value.rankingSearchLimit
+  let limit = 0
+  if (type === 'single') limit = selectedUser.value.singleSearchLimit
+  else if (type === 'ranking') limit = selectedUser.value.rankingSearchLimit
+  else if (type === 'shopping') limit = selectedUser.value.shoppingSearchLimit // ✅ 쇼핑 추가
+
   try {
     await api.put(`/api/v1/admin/users/${selectedUser.value.id}/usage-limit`, { type, limit })
     Dialog.create({
       title: '✅ 제한 설정 완료',
-      message: `${type === 'single' ? '단일 검색' : '랭킹 검색'} 제한이 ${limit}회로 설정되었습니다.`
+      message: `${{
+        single: '단일 검색',
+        ranking: '랭킹 검색',
+        shopping: '쇼핑 검색'
+      }[type]} 제한이 ${limit}회로 설정되었습니다.`
     })
   } catch {
     Dialog.create({ title: '❌ 오류', message: '제한 설정 중 오류가 발생했습니다.' })
@@ -838,11 +867,14 @@ async function openUserDetail(row) {
   const usage = res.data.usage
 
   selectedUser.value = {
-    ...user, // ✅ 기능 사용 여부는 user 객체 기준
+    ...user,
     singleSearchLimit: usage.singleSearchLimit,
     singleSearchUsed: usage.singleSearchUsed,
     rankingSearchLimit: usage.rankingSearchLimit,
-    rankingSearchUsed: usage.rankingSearchUsed
+    rankingSearchUsed: usage.rankingSearchUsed,
+    shoppingSearchLimit: usage.shoppingSearchLimit,    // ✅ 쇼핑 추가
+    shoppingSearchUsed: usage.shoppingSearchUsed,      // ✅ 쇼핑 추가
+    canUseShoppingSearch: usage.canUseShoppingSearch    // ✅ 쇼핑 사용 여부 추가
   }
 
   customDate.value = null
@@ -864,6 +896,7 @@ async function updateFeatureUsage(feature, enabled) {
       message: `${{
         single: '단일 검색',
         ranking: '랭킹 검색',
+        shopping: '쇼핑 검색',   // ✅ 쇼핑 추가
         related: '연관 검색',
         mixer: '키워드 조합기'
       }[feature]} 사용 여부가 저장되었습니다.`

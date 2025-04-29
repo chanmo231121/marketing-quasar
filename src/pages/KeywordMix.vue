@@ -228,7 +228,7 @@ export default {
         userStore.userInfo.role !== 'ADMIN' &&
         userStore.userInfo.role !== 'DEV'
       ) {
-        showDialog('⛔ 승인요청을 해주세요.')
+        showDialog('⛔ 오른쪽 상단에 있는 승인요청을 해주세요! 하셨다면 대기해주세요!')
         return
       }
 

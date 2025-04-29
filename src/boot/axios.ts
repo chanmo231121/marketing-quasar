@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers'
 import axios from 'axios'
+import { Notify } from 'quasar' // ✅ Quasar Notify 불러오기
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -16,6 +17,27 @@ function onRefreshed(newAccessToken: string) {
 
 function addSubscriber(callback: (token: string) => void) {
   subscribers.push(callback)
+}
+
+// ✅ 로그아웃 + 알림 + 로그인 페이지 이동 함수
+function logoutUser() {
+  console.log('🚪 세션 만료 → 로그아웃 처리')
+
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('userInfo')
+
+  // ✅ 알림 메시지
+  Notify.create({
+    type: 'warning',
+    message: '세션이 만료되었습니다. 다시 로그인 해주세요.',
+    timeout: 3000, // 3초 후 자동 사라짐
+    position: 'top'
+  })
+
+  // ✅ 로그인 페이지로 이동
+  setTimeout(() => {
+    window.location.href = '/login'
+  }, 1500) // 1.5초 후 이동
 }
 
 // ✅ 요청 시 accessToken 자동 첨부
@@ -36,11 +58,12 @@ api.interceptors.request.use(config => {
   return config
 }, error => Promise.reject(error))
 
-// ✅ 응답 인터셉터 - accessToken 만료 시 자동 재발급
+// ✅ 응답 인터셉터 - accessToken 만료 시 자동 재발급 or 자동 로그아웃
 api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       console.log('🔄 Access Token 만료, refresh 시도...')
@@ -72,14 +95,19 @@ api.interceptors.response.use(
           return api(originalRequest)
         }
 
+        console.warn('❗ 새 AccessToken 발급 실패 → 로그아웃')
+        logoutUser()
         return Promise.reject(error)
+
       } catch (e) {
+        console.error('❌ Refresh 요청 실패 → 로그아웃', e)
+        logoutUser()
         return Promise.reject(e)
+
       } finally {
         isRefreshing = false
       }
     }
-    document.cookie
 
     return Promise.reject(error)
   }

@@ -13,7 +13,9 @@ const routes = [
       { path: 'login', component: () => import('pages/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/SignupPage.vue') },
       { path: 'profile', component: () => import('pages/ProfileEditPage.vue') },
-      { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') }
+      { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') },
+      { path: 'shopping-ranking',  component: () => import('pages/ShoppingRankingPage.vue')
+      }
     ]
   },
 

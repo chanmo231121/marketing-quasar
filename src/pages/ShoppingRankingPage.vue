@@ -35,11 +35,11 @@
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
-          <textarea v-model="keywordInput" placeholder="키워드를 입력하세요(100개 까지)" rows="4"></textarea>
+          <textarea v-model="keywordInput" placeholder="키워드를 입력하세요" rows="4"></textarea>
           <div class="button-group">
             <button
               @click="processKeywords"
-              :disabled="loading || keywordInput.trim() === ''"
+              :disabled="loading || !keywordInput.trim()"
               class="primary-btn dense-btn"
               style="position: relative; display: flex; justify-content: center; align-items: center; gap: 8px;"
             >
@@ -56,7 +56,7 @@
             <button
               class="negative-btn dense-btn"
               @click="resetAll"
-              :disabled="loading || keywordInput === ''"
+              :disabled="loading || !keywordInput"
             >
               키워드 초기화
             </button>
@@ -69,15 +69,15 @@
           <button @click="downloadExcel" class="secondary-btn dense-btn excel-download-small-btn">
             엑셀 다운로드(CSV)
           </button>
-          <button class="negative-btn dense-btn" @click="clearSearchResults" :disabled="loading || Object.keys(adsData).length === 0">
+          <button class="negative-btn dense-btn" @click="clearSearchResults" :disabled="loading || !Object.keys(adsData).length">
             검색 초기화
           </button>
         </div>
 
-        <div class="keyword-list-container" v-if="keywords.length > 0">
+        <div class="keyword-list-container" v-if="keywords.length">
           <button
-            v-for="(keyword, index) in keywords"
-            :key="index"
+            v-for="(keyword, idx) in keywords"
+            :key="idx"
             @click="getNaverAdsData(keyword)"
             :class="{ active: keyword === selectedKeyword }"
           >
@@ -94,31 +94,28 @@
               <th colspan="3">MO</th>
             </tr>
             <tr>
+              <!-- 순서: 제목 → 판매자 → 가격 -->
+              <th>타이틀</th>
               <th>판매자</th>
-              <th>제목</th>
-              <th>URL</th>
+              <th>가격</th>
+              <th>타이틀</th>
               <th>판매자</th>
-              <th>제목</th>
-              <th>URL</th>
+              <th>가격</th>
             </tr>
             </thead>
             <tbody>
-            <tr v-for="(row, index) in combinedTableData" :key="index">
-              <td>{{ index + 1 }}</td>
-              <td>{{ row.pc.SellerName || '-' }}</td>
-              <td>{{ row.pc.Subtitle || '-' }}</td>
-              <td class="url-column">
-                <a v-if="row.pc['Main URL']" :href="row.pc['Main URL']" target="_blank">{{ row.pc['Main URL'] }}</a>
-                <span v-else>-</span>
-              </td>
-              <td>{{ row.mobile.SellerName || '-' }}</td>
-              <td>{{ row.mobile.Subtitle || '-' }}</td>
-              <td class="url-column">
-                <a v-if="row.mobile['Main URL']" :href="row.mobile['Main URL']" target="_blank">{{ row.mobile['Main URL'] }}</a>
-                <span v-else>-</span>
-              </td>
+            <tr v-for="(row, i) in combinedTableData" :key="i">
+              <td>{{ i + 1 }}</td>
+              <!-- PC: 제목 먼저, 그다음 판매자명1 -->
+              <td>{{ row.pc['타이틀'] || '-' }}</td>
+              <td>{{ row.pc['판매자명1'] || '-' }}</td>
+              <td>{{ row.pc['가격'] || '-' }}</td>
+              <!-- MO: 제목 먼저, 그다음 판매처 -->
+              <td>{{ row.mobile['타이틀'] || '-' }}</td>
+              <td>{{ row.mobile['판매처'] || '-' }}</td>
+              <td>{{ row.mobile['가격'] || '-' }}</td>
             </tr>
-            <tr v-if="combinedTableData.length === 0">
+            <tr v-if="!combinedTableData.length">
               <td colspan="7" class="no-data">키워드를 조회하십시오.</td>
             </tr>
             </tbody>
@@ -140,7 +137,7 @@ export default {
   setup() {
     const keywordInput = ref('')
     const keywords = ref([])
-    const adsData = ref({})
+    const adsData = ref({})         // { [keyword]: { pc: [], mobile: [] } }
     const pcAdsData = ref([])
     const mobileAdsData = ref([])
     const combinedTableData = ref([])
@@ -149,9 +146,8 @@ export default {
     const currentProgress = ref(0)
     const totalKeywords = ref(0)
     const failedList = ref([])
-    let limitExceeded = false  // ← 추가: 사용량 초과 플래그
 
-    // 배너 관련
+    // 배너
     const bannerTitle = ref('')
     const bannerContent = ref('')
     const isEditing = ref(false)
@@ -160,159 +156,106 @@ export default {
     const userStore = useUserStore()
     const { userInfo } = storeToRefs(userStore)
 
-    const showDialog = (msg) => {
+    const showDialog = msg => {
       proxy.$q.dialog({ title: '알림 📢', message: msg, ok: '확인' })
     }
 
     const fetchBanner = async () => {
       try {
-        const res = await api.get('/api/v1/banner', { params: { page: 'keyword-ranking' } })
+        const res = await api.get('/api/v1/banner', { params: { page: 'shopping-ranking' } })
         bannerTitle.value = res.data.title
         bannerContent.value = res.data.description1
-      } catch (err) {
-        console.error(err)
+      } catch (e) {
+        console.error(e)
       }
     }
-
     const saveBanner = async () => {
       try {
         await api.put('/api/v1/banner/update', {
           title: bannerTitle.value,
           description1: bannerContent.value,
           description2: ''
-        }, {
-          params: { page: 'keyword-ranking' }
-        })
+        }, { params: { page: 'shopping-ranking' }})
         isEditing.value = false
         showDialog('✅ 배너가 저장되었습니다.')
-      } catch (err) {
+      } catch {
         showDialog('❌ 배너 저장 실패')
-        console.error(err)
       }
     }
-
-    const startEdit = () => { isEditing.value = true }
+    const startEdit = () => isEditing.value = true
     const cancelEdit = () => { isEditing.value = false; fetchBanner() }
 
+    // 키워드 처리
     const processKeywords = async () => {
-      const accessToken = localStorage.getItem('accessToken')
-      if (!accessToken) {
-        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏')
+      // 1) 로그인 체크
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 이용해주세요.')
         return
       }
 
-      const processedKeywords = keywordInput.value
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-
-      if (processedKeywords.length > 100) {
+      // 2) 입력 분리
+      const lines = keywordInput.value.split('\n').map(l => l.trim()).filter(Boolean)
+      if (!lines.length) return
+      if (lines.length > 100) {
         showDialog('⚠️ 키워드는 최대 100개까지 입력 가능합니다.')
         return
       }
 
-      keywords.value = processedKeywords
+      keywords.value = lines
       adsData.value = {}
-      failedList.value = []
       loading.value = true
       currentProgress.value = 0
-      totalKeywords.value = processedKeywords.length
-      limitExceeded = false
+      totalKeywords.value = lines.length
 
-      let deviceMismatchShown = false   // ❗ 추가: 기기불일치 알림 뜬 적 있는지 체크
+      // 승인 메시지만 띄우기 위한 플래그
+      let approvalShown = false
 
-      processedKeywords.forEach((keyword, index) => {
-        api.post('/api/naver-ads/search', {
-          keywords: [keyword]
-        }, {
-          headers: {
-            'X-Is-First': index === 0,
-            'X-Device-Id': localStorage.getItem(`deviceId_${userInfo.value.id}`) || ''
-          }
-        }).then(res => {
-          if (res.data?.error?.includes('기기 불일치') && !deviceMismatchShown) {
-            deviceMismatchShown = true   // ❗ 최초 1회만
-            showDialog('⚠️ 기기 불일치. 재승인을 요청해주세요.')
-            return
-          }
-
-          const data = res.data.data || []
-          const failed = res.data.failedKeywords || []
-
-          if (data.length === 0 || failed.includes(keyword)) {
-            failedList.value.push(keyword)
-            adsData.value[keyword] = []
-          } else {
-            adsData.value[keyword] = data
-          }
-        }).catch(err => {
-          const errorMsg = err?.response?.data?.error || '❌ 처리 중 오류 발생'
-
-          if (errorMsg.includes('기기 불일치')) {
-            if (!deviceMismatchShown) {   // ❗ 에러에서도 동일 처리
-              deviceMismatchShown = true
-              showDialog('⚠️ 기기 불일치. 재승인을 요청해주세요.')
+      // 3) 각 키워드 요청
+      lines.forEach((keyword,) => {
+        api.get('/api/shopping', { params: { keyword } })
+          .then(res => {
+            // 서버에서 approvalMessage가 오면 즉시 표시
+            if (res.data?.approvalMessage) {
+              showDialog(res.data.approvalMessage)
+              approvalShown = true
+              return
             }
-            return
-          }
-
-          if (errorMsg.includes('하루 최대')) {
-            limitExceeded = true
-          }
-
-          failedList.value.push(keyword)
-          adsData.value[keyword] = []
-          console.error(`${keyword} 처리 실패:`, err)
-        }).finally(() => {
-          currentProgress.value++
-
-          if (currentProgress.value === processedKeywords.length) {
-            loading.value = false
-
-            if (deviceMismatchShown) return   // ❗ 기기 불일치 발생했으면 여기서 끝
-            if (Object.values(adsData.value).every(arr => arr.length === 0)) {
-              if (!limitExceeded) {
-                showDialog('📭 키워드 데이터가 없습니다.')
-              }
-            } else {
-              proxy.$q.dialog({
-                title: '알림 📢',
-                message: '✅ 모든 키워드 데이터를 가져왔습니다.',
-                ok: '확인'
-              }).onOk(() => {
-                if (failedList.value.length > 0) {
-                  const first = failedList.value[0]
-                  const count = failedList.value.length
-                  const message = count === 1
-                    ? `📭 '${first}' 키워드는 광고 데이터가 없습니다.`
-                    : `📭 '${first}' 외 ${count - 1}개의 키워드는 광고 데이터가 없습니다.`
-                  proxy.$q.dialog({ title: '알림 📢', message, ok: '확인' })
-                }
-              })
+            // 기본 응답 저장
+            adsData.value[keyword] = res.data
+          })
+          .catch(err => {
+            const msg = err.response?.data?.approvalMessage
+              || err.response?.data?.message
+              || '❌ 처리 중 오류 발생'
+            showDialog(msg)
+            approvalShown = true
+          })
+          .finally(() => {
+            currentProgress.value++
+            // 4) 모든 요청이 끝났을 때
+            if (currentProgress.value === lines.length) {
+              loading.value = false
+              // approvalMessage를 이미 띄웠으면 여기서 종료
+              if (approvalShown) return
+              // 아니면 정상 완료 알림
+              showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
             }
-          }
-        })
+          })
       })
     }
 
-
-    const getNaverAdsData = (keyword) => {
+    const getNaverAdsData = keyword => {
       selectedKeyword.value = keyword
-      const data = adsData.value[keyword]
-      if (!data || data.length === 0) {
-        showDialog('😢 해당 키워드의 데이터가 없습니다.')
-        combinedTableData.value = []
-        return
-      }
-
-      pcAdsData.value = data.filter(ad => ad.Platform === 'PC')
-      mobileAdsData.value = data.filter(ad => ad.Platform === 'Mobile')
+      const data = adsData.value[keyword] || { pc: [], mobile: [] }
+      pcAdsData.value = data.pc
+      mobileAdsData.value = data.mobile
       combineTableData()
     }
 
     const combineTableData = () => {
-      const maxLength = Math.max(pcAdsData.value.length, mobileAdsData.value.length)
-      combinedTableData.value = Array.from({ length: maxLength }, (_, i) => ({
+      const maxLen = Math.max(pcAdsData.value.length, mobileAdsData.value.length)
+      combinedTableData.value = Array.from({ length: maxLen }, (_, i) => ({
         pc: pcAdsData.value[i] || {},
         mobile: mobileAdsData.value[i] || {}
       }))
@@ -331,10 +274,6 @@ export default {
     }
 
     const clearSearchResults = () => {
-      if (Object.keys(adsData.value).length === 0) {
-        showDialog('📭 삭제할 데이터가 없습니다.')
-        return
-      }
       adsData.value = {}
       pcAdsData.value = []
       mobileAdsData.value = []
@@ -343,74 +282,99 @@ export default {
     }
 
     const downloadExcel = () => {
-      const allData = Object.values(adsData.value).flat()
-      const failedKeywords = failedList.value
+      const rows = []
 
-      if (allData.length === 0 && failedKeywords.length === 0) {
+      // adsData: { [keyword]: { pc: [], mobile: [] } }
+      Object.entries(adsData.value).forEach(([, data]) => {
+        // PC 아이템
+        data.pc.forEach(item => {
+          rows.push({
+            '현재시각':    item['현재시각'],
+            '키워드':      item['키워드'],
+            '기기':        'PC',
+            '광고 구분':   item['광고 구분'],
+            '노출순위':    item['노출순위'],
+            '타이틀':      item['타이틀'],
+            '가격':        item['가격'],
+            '배송비':      item['배송비'],
+            '판매자명1':   item['판매자명1'],
+            '판매자명2':   item['판매자명2'],
+            '판매자명3':   item['판매자명3'],
+            '판매자명4':   item['판매자명4'],
+            '판매자명5':   item['판매자명5'],
+            '별점':        item['별점'],
+            '리뷰수':      item['리뷰수'],
+            '등록일':      item['등록일'],
+            '찜수':        item['찜수'],
+            '구매수':      item['구매수']
+          })
+        })
+
+        // 모바일 아이템
+        data.mobile.forEach(item => {
+          rows.push({
+            '현재시각':    item['현재시각'],
+            '키워드':      item['키워드'],
+            '기기':        '모바일',
+            '광고 구분':   item['광고 구분'],
+            '노출순위':    item['노출순위'],
+            '타이틀':      item['타이틀'],
+            '가격':        item['가격'],
+            '배송비':      item['배송비'],
+            // 모바일 판매처를 판매자명1에 할당
+            '판매자명1':   item['판매처'] || '',
+            '판매자명2':   '',
+            '판매자명3':   '',
+            '판매자명4':   '',
+            '판매자명5':   '',
+            '별점':        item['평점'] || item['별점'] || '',
+            '리뷰수':      item['리뷰수'] || '',
+            '등록일':      item['등록일'] || '',
+            '찜수':        item['찜'] || item['찜수'] || '',
+            '구매수':      item['구매수'] || ''
+          })
+        })
+      })
+
+      if (rows.length === 0 && failedList.value.length === 0) {
         showDialog('📂 다운로드할 데이터가 없습니다.')
         return
       }
 
-      const time = new Date().toLocaleTimeString()
-      const wsData = allData.map(ad => ({
-        시간: time,
-        키워드: ad.Keyword,
-        순위: ad.Rank,
-        플랫폼: ad.Platform,
-        판매자: ad.SellerName,
-        제목: ad.Title,
-        부제목: ad.Subtitle,
-        기간: ad.Period,
-        URL: ad['Main URL'] || '-'
-      }))
-
+      // 엑셀 워크북/시트 생성
       const wb = XLSX.utils.book_new()
-      if (wsData.length > 0) {
-        const ws = XLSX.utils.json_to_sheet(wsData)
-        XLSX.utils.book_append_sheet(wb, ws, '광고 데이터')
-      }
-      if (failedKeywords.length > 0) {
-        const noAdSheetData = failedKeywords.map(keyword => ({
-          시간: time,
-          키워드: keyword,
-          비고: '광고 데이터 없음'
+      const ws = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(wb, ws, '크롤링 결과')
+
+      // 실패 키워드 시트 (선택)
+      if (failedList.value.length) {
+        const failRows = failedList.value.map(k => ({
+          '키워드': k,
+          '비고':  '데이터 없음'
         }))
-        const wsFail = XLSX.utils.json_to_sheet(noAdSheetData)
-        XLSX.utils.book_append_sheet(wb, wsFail, '광고 없음 키워드')
+        const wsFail = XLSX.utils.json_to_sheet(failRows)
+        XLSX.utils.book_append_sheet(wb, wsFail, '실패 키워드')
       }
-      XLSX.writeFile(wb, 'naver_ads_data.xlsx')
+
+      // 파일 저장
+      XLSX.writeFile(wb, 'naver_shopping_data.xlsx')
     }
 
     onMounted(fetchBanner)
 
     return {
-      keywordInput,
-      keywords,
-      adsData,
-      pcAdsData,
-      mobileAdsData,
-      combinedTableData,
-      selectedKeyword,
-      loading,
-      currentProgress,
-      totalKeywords,
-      processKeywords,
-      getNaverAdsData,
-      combineTableData,
-      resetAll,
-      clearSearchResults,
-      downloadExcel,
-      bannerTitle,
-      bannerContent,
-      isEditing,
-      saveBanner,
-      cancelEdit,
-      startEdit,
-      userInfo
+      keywordInput, keywords, adsData,
+      pcAdsData, mobileAdsData, combinedTableData,
+      selectedKeyword, loading, currentProgress, totalKeywords,
+      processKeywords, getNaverAdsData, combineTableData,
+      resetAll, clearSearchResults, downloadExcel,
+      bannerTitle, bannerContent, isEditing,
+      saveBanner, cancelEdit, startEdit, userInfo
     }
   }
 }
 </script>
+
 
 <style scoped>
 #app {

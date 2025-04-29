@@ -7,7 +7,6 @@
       side="left"
       bordered
       show-if-above
-      behavior="overlay"
       :width="200"
       :mini="isMiniMode"
       @mouseover="isMiniMode = false"
@@ -18,24 +17,6 @@
       <q-list>
         <q-item-label header class="text-grey">관리자 메뉴</q-item-label>
 
-        <!--
-        <q-item clickable v-ripple to="/admin/approval">
-          <q-item-section avatar><q-icon name="check_circle" /></q-item-section>
-          <q-item-section v-if="!isMiniMode">승인심사</q-item-section>
-        </q-item>
-
-        <q-item clickable v-ripple to="/admin/rejected-users">
-          <q-item-section avatar><q-icon name="cancel" /></q-item-section>
-          <q-item-section v-if="!isMiniMode">거절목록</q-item-section>
-        </q-item>
-
-        <q-item clickable v-ripple to="/admin/user-tracking">
-          <q-item-section avatar><q-icon name="manage_accounts" /></q-item-section>
-          <q-item-section v-if="!isMiniMode">사원관리</q-item-section>
-        </q-item>
-        -->
-
-        <!-- 테스트 메뉴만 남김 -->
         <q-item clickable v-ripple to="/admin/test">
           <q-item-section avatar><q-icon name="person" /></q-item-section>
           <q-item-section v-if="!isMiniMode">Control Tower</q-item-section>
@@ -128,7 +109,9 @@
       <q-route-tab to="/ranking-search" class="custom-tab">
         <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
       </q-route-tab>
-        <!-- 공지사항 메뉴 추가 -->
+        <q-route-tab to="/shopping-ranking" class="custom-tab">
+          <q-icon name="shopping_cart" size="20px" class="tab-icon" /> 네이버 쇼핑순위
+        </q-route-tab>
         <q-route-tab to="/notices" class="custom-tab">
           <q-icon name="announcement" size="20px" class="tab-icon" /> 공지사항
         </q-route-tab>
@@ -325,7 +308,6 @@ export default {
         })
       }
     }
-    const showContactCard = ref(false) // ① 다이얼로그 상태
 
 
     return {
@@ -338,7 +320,6 @@ export default {
       toggleDrawer,
       isMiniMode,
       requestDeviceApproval,
-      showContactCard
     }
   }
 }
@@ -410,5 +391,12 @@ export default {
   pointer-events: none;
 }
 
+.floating-inquiry-btn {
+  position: fixed;
+  bottom: 80px; /* ← 여기만 수정해줘 */
+  right: 24px;
+  z-index: 999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
 
 </style>
