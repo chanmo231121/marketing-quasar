@@ -45,9 +45,7 @@
             >
               <template v-if="loading">
                 <q-spinner color="white" size="20px" />
-                <span style="color: white; font-size: 14px;">
-                  {{ currentProgress }}/{{ totalKeywords }}
-                </span>
+                <span style="color: white; font-size: 14px;">검색 중...</span>
               </template>
               <template v-else>
                 검색
@@ -187,14 +185,12 @@ export default {
 
     // 키워드 처리
     const processKeywords = async () => {
-      // 1) 로그인 체크
       const token = localStorage.getItem('accessToken')
       if (!token) {
         showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 이용해주세요.')
         return
       }
 
-      // 2) 입력 분리
       const lines = keywordInput.value.split('\n').map(l => l.trim()).filter(Boolean)
       if (!lines.length) return
       if (lines.length > 100) {
@@ -208,42 +204,41 @@ export default {
       currentProgress.value = 0
       totalKeywords.value = lines.length
 
-      // 승인 메시지만 띄우기 위한 플래그
-      let approvalShown = false
+      try {
+        const res = await api.get('/api/shopping', {
+          params: { keywords: lines },
+          paramsSerializer: params => {
+            return new URLSearchParams(params).toString()
+          }
+        })
 
-      // 3) 각 키워드 요청
-      lines.forEach((keyword,) => {
-        api.get('/api/shopping', { params: { keyword } })
-          .then(res => {
-            // 서버에서 approvalMessage가 오면 즉시 표시
-            if (res.data?.approvalMessage) {
-              showDialog(res.data.approvalMessage)
-              approvalShown = true
-              return
-            }
-            // 기본 응답 저장
-            adsData.value[keyword] = res.data
-          })
-          .catch(err => {
-            const msg = err.response?.data?.approvalMessage
-              || err.response?.data?.message
-              || '❌ 처리 중 오류 발생'
-            showDialog(msg)
-            approvalShown = true
-          })
-          .finally(() => {
-            currentProgress.value++
-            // 4) 모든 요청이 끝났을 때
-            if (currentProgress.value === lines.length) {
-              loading.value = false
-              // approvalMessage를 이미 띄웠으면 여기서 종료
-              if (approvalShown) return
-              // 아니면 정상 완료 알림
-              showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+        if (res.data?.approvalMessage) {
+          showDialog(res.data.approvalMessage)
+        } else {
+          // ✅ 기기별로 나누어 저장
+          Object.entries(res.data).forEach(([keyword, items]) => {
+            const pcItems = items.filter(item => item.기기 === 'PC')
+            const moItems = items.filter(item => item.기기 === '모바일')
+
+            adsData.value[keyword] = {
+              pc: pcItems,
+              mobile: moItems
             }
           })
-      })
+
+          showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+        }
+      } catch (err) {
+        const msg = err.response?.data?.approvalMessage
+          || err.response?.data?.message
+          || '❌ 처리 중 오류 발생'
+        showDialog(msg)
+      } finally {
+        loading.value = false
+        currentProgress.value = lines.length
+      }
     }
+
 
     const getNaverAdsData = keyword => {
       selectedKeyword.value = keyword
