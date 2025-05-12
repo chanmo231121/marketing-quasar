@@ -109,20 +109,23 @@
       <q-route-tab to="/ranking-search" class="custom-tab">
         <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
       </q-route-tab>
+
         <q-route-tab
           to="/naver-trend"
           class="custom-tab"
-          v-if="userInfo.role === 'DEV'"
+          v-if="userInfo && userInfo.role === 'DEV'"
         >
           <q-icon name="trending_up" size="20px" class="tab-icon" /> 네이버 트렌드
         </q-route-tab>
+
         <q-route-tab
           to="/shopping-ranking"
           class="custom-tab"
-          v-if="userInfo.role === 'DEV'"
+          v-if="userInfo && userInfo.role === 'DEV'"
         >
           <q-icon name="shopping_cart" size="20px" class="tab-icon" /> 네이버 쇼핑순위
         </q-route-tab>
+
         <q-route-tab to="/notices" class="custom-tab">
           <q-icon name="announcement" size="20px" class="tab-icon" /> 공지사항
         </q-route-tab>
