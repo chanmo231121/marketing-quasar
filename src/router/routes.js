@@ -14,8 +14,9 @@ const routes = [
       { path: 'signup', component: () => import('pages/SignupPage.vue') },
       { path: 'profile', component: () => import('pages/ProfileEditPage.vue') },
       { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') },
-      { path: 'shopping-ranking',  component: () => import('pages/ShoppingRankingPage.vue')
-      }
+      { path: 'shopping-ranking',  component: () => import('pages/ShoppingRankingPage.vue') },
+      { path: 'naver-trend', component: () => import('pages/NaverTrendPage.vue') },
+
     ]
   },
 

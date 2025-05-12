@@ -110,6 +110,13 @@
         <q-icon name="star" size="20px" class="tab-icon" /> 키워드 랭킹순위
       </q-route-tab>
         <q-route-tab
+          to="/naver-trend"
+          class="custom-tab"
+          v-if="userInfo.role === 'DEV'"
+        >
+          <q-icon name="trending_up" size="20px" class="tab-icon" /> 네이버 트렌드
+        </q-route-tab>
+        <q-route-tab
           to="/shopping-ranking"
           class="custom-tab"
           v-if="userInfo.role === 'DEV'"
