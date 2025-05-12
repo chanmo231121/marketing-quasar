@@ -88,6 +88,7 @@ import { storeToRefs } from 'pinia'
 
 const rawKeywords = ref('')
 const chartData = ref({ labels: [], datasets: [] })
+const fullResults = ref([]) // 전체 데이터를 엑셀용으로 저장
 
 const startDate = ref(dayjs().subtract(3, 'month').format('YYYY-MM-DD'))
 const endDate = ref(dayjs().format('YYYY-MM-DD'))
@@ -152,11 +153,7 @@ const saveBanner = async () => {
 }
 
 const fetchTrendData = async () => {
-  const lines = rawKeywords.value
-    .split('\n')
-    .map(l => l.trim())
-    .filter(Boolean)
-
+  const lines = rawKeywords.value.split('\n').map(l => l.trim()).filter(Boolean)
   const keywordGroups = []
 
   for (const line of lines) {
@@ -198,8 +195,7 @@ const fetchTrendData = async () => {
       allResults.push(...res.data.results)
       currentProgress.value += batch.length
     }
-
-    if (allResults.length === 0) return
+    fullResults.value = allResults
     chartData.value.labels = allResults[0].data.map(item => item.period)
     chartData.value.datasets = allResults.slice(0, 5).map(group => ({
       label: group.title,
@@ -218,14 +214,16 @@ const fetchTrendData = async () => {
 const clearInputs = () => {
   rawKeywords.value = ''
   chartData.value = { labels: [], datasets: [] }
+  fullResults.value = []
 }
 
 const downloadExcel = () => {
-  if (chartData.value.datasets.length === 0) return
-  const data = chartData.value.labels.map((label, i) => {
+  if (fullResults.value.length === 0) return
+  const labels = fullResults.value[0].data.map(item => item.period)
+  const data = labels.map((label, i) => {
     const row = { 기간: label }
-    chartData.value.datasets.forEach(dataset => {
-      row[dataset.label] = dataset.data[i]
+    fullResults.value.forEach(dataset => {
+      row[dataset.title] = dataset.data[i].ratio
     })
     return row
   })
@@ -235,6 +233,7 @@ const downloadExcel = () => {
   XLSX.writeFile(wb, 'trend_data.xlsx')
 }
 </script>
+
 
 <style scoped>
 #app { font-family:Avenir,Helvetica,Arial,sans-serif; text-align:center; color:#2c3e50 }
