@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md flex items-start justify-center" style="padding-top: 80px;">
+  <q-page class="q-pa-md flex items-start justify-center" style="padding-top: 250px;">
     <q-card class="q-pa-lg shadow-2" style="min-width: 300px; max-width: 400px;">
       <q-card-section>
         <div class="text-h6 text-center">로그인</div>
