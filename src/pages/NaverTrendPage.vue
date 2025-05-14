@@ -42,11 +42,41 @@
             <div class="label">기간</div>
             <div class="row items-center q-gutter-sm">
               <!-- Preset 버튼들 -->
-              <q-btn flat :outline="selectedPreset !== 'all'" label="전체" @click="selectPreset('all')" size="sm" class="preset-btn" />
-              <q-btn flat :outline="selectedPreset !== '1m'" label="1개월" @click="selectPreset('1m')" size="sm" class="preset-btn" />
-              <q-btn flat :outline="selectedPreset !== '3m'" label="3개월" @click="selectPreset('3m')" size="sm" class="preset-btn" />
-              <q-btn flat :outline="selectedPreset !== '1y'" label="1년" @click="selectPreset('1y')" size="sm" class="preset-btn" />
-              <q-btn flat :outline="selectedPreset !== 'custom'" label="직접입력" @click="selectPreset('custom')" size="sm" class="preset-btn" />
+              <q-btn
+                flat
+                :class="['preset-btn', selectedPreset === 'all' ? 'preset-active' : '']"
+                label="전체"
+                @click="selectPreset('all')"
+                size="sm"
+              />
+              <q-btn
+                flat
+                :class="['preset-btn', selectedPreset === '1m' ? 'preset-active' : '']"
+                label="1개월"
+                @click="selectPreset('1m')"
+                size="sm"
+              />
+              <q-btn
+                flat
+                :class="['preset-btn', selectedPreset === '3m' ? 'preset-active' : '']"
+                label="3개월"
+                @click="selectPreset('3m')"
+                size="sm"
+              />
+              <q-btn
+                flat
+                :class="['preset-btn', selectedPreset === '1y' ? 'preset-active' : '']"
+                label="1년"
+                @click="selectPreset('1y')"
+                size="sm"
+              />
+              <q-btn
+                flat
+                :class="['preset-btn', selectedPreset === 'custom' ? 'preset-active' : '']"
+                label="직접입력"
+                @click="selectPreset('custom')"
+                size="sm"
+              />
 
               <!-- 단위 드롭다운 -->
               <q-select
@@ -67,14 +97,28 @@
               <!-- 시작일 -->
               <q-select v-model="startYear" :options="yearOptions" dense outlined emit-value map-options style="width: 100px;" label="연도" />
               <q-select v-model="startMonth" :options="monthOptions" dense outlined emit-value map-options style="width: 80px;" label="월" />
-              <q-select v-model="startDay" :options="getDaysInMonth(startYear, startMonth)" dense outlined emit-value map-options style="width: 80px;" label="일" />
+              <q-select
+                v-if="timeUnit === 'date'"
+                v-model="startDay"
+                :options="getDaysInMonth(startYear, startMonth)"
+                dense outlined emit-value map-options
+                style="width: 80px;"
+                label="일"
+              />
 
               <span class="q-mx-sm">-</span>
 
               <!-- 종료일 -->
               <q-select v-model="endYear" :options="yearOptions" dense outlined emit-value map-options style="width: 100px;" label="연도" />
               <q-select v-model="endMonth" :options="monthOptions" dense outlined emit-value map-options style="width: 80px;" label="월" />
-              <q-select v-model="endDay" :options="getDaysInMonth(endYear, endMonth, true)" dense outlined emit-value map-options style="width: 80px;" label="일" />
+              <q-select
+                v-if="timeUnit === 'date'"
+                v-model="endDay"
+                :options="getDaysInMonth(endYear, endMonth, true)"
+                dense outlined emit-value map-options
+                style="width: 80px;"
+                label="일"
+              />
             </div>
             <div class="text-caption text-grey-7 q-mt-xs" style="margin-left: 4px;">· 2016년 1월 이후 조회할 수 있습니다.</div>
           </div>
@@ -185,8 +229,26 @@ const getDaysInMonth = (year, month, isEnd = false) => {
 }
 
 // ✅ 실제 API 요청용 날짜 포맷
-const startDate = computed(() => `${startYear.value}-${startMonth.value}-${startDay.value}`)
-const endDate = computed(() => `${endYear.value}-${endMonth.value}-${endDay.value}`)
+const startDate = computed(() => {
+  if (timeUnit.value === 'date') {
+    return `${startYear.value}-${startMonth.value}-${startDay.value}`
+  }
+
+  // 주간/월간은 항상 01일부터 시작
+  return `${startYear.value}-${startMonth.value}-01`
+})
+
+const endDate = computed(() => {
+  if (timeUnit.value === 'date') {
+    return `${endYear.value}-${endMonth.value}-${endDay.value}`
+  }
+
+  const isCurrentMonth = dayjs().isSame(`${endYear.value}-${endMonth.value}-01`, 'month')
+  const baseDate = dayjs(`${endYear.value}-${endMonth.value}-01`)
+  const lastDay = isCurrentMonth ? dayjs().subtract(1, 'day') : baseDate.endOf('month')
+
+  return lastDay.format('YYYY-MM-DD')
+})
 
 const rawKeywords = ref('')
 const chartData = ref({ labels: [], datasets: [] })
@@ -290,29 +352,33 @@ const ageOptions = [
 
 watch(ages, (val, prev) => {
   const hasAll = val.includes('all')
-  const base = ['1', '2', '3', '4', '5', '6']
+  const full = ['1','2','3','4','5','6','7','8','9','10','11']
 
-  if (hasAll && (!prev.includes('all') || prev.length < 7)) {
-    ages.value = ['all', ...base]
+  // 전체 체크 시: 전부 선택
+  if (hasAll && (!prev.includes('all') || prev.length < 12)) {
+    ages.value = ['all', ...full]
     return
   }
 
-  if (!hasAll && prev.includes('all') && prev.length === 7) {
+  // 전체 해제 시
+  if (!hasAll && prev.includes('all') && prev.length === 12) {
     ages.value = []
     return
   }
 
   const selectedOnly = val.filter(v => v !== 'all')
-  if (selectedOnly.length === 6 && !hasAll) {
-    ages.value = ['all', ...base]
+  if (selectedOnly.length === 11 && !hasAll) {
+    ages.value = ['all', ...full]
     return
   }
 
-  if (hasAll && selectedOnly.length < 6) {
+  if (hasAll && selectedOnly.length < 11) {
     ages.value = selectedOnly
     return
   }
 })
+
+
 const bannerTitle = ref('')
 const bannerContent = ref('')
 const isEditing = ref(false)
@@ -336,13 +402,8 @@ onMounted(async () => {
   }
 })
 
-const startEdit = () => {
-  isEditing.value = true
-}
-const cancelEdit = () => {
-  isEditing.value = false;
-  onMounted()
-}
+const startEdit = () => { isEditing.value = true }
+const cancelEdit = () => { isEditing.value = false; onMounted() }
 
 const saveBanner = async () => {
   try {
@@ -405,7 +466,9 @@ const fetchTrendData = async () => {
         device: device.value.includes('pc') && device.value.includes('mo') ? '' :
           device.value.includes('pc') ? 'pc' :
             device.value.includes('mo') ? 'mo' : '',
-        ages: ages.value.length === 0 ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'] : ages.value,
+        ages: ages.value.length === 0
+          ? ['1','2','3','4','5','6','7','8','9','10','11']
+          : ages.value.filter(v => v !== 'all'),
         gender: gender.value.length === 0 || gender.value.length === 2 ? '' : gender.value[0]
       }
       const res = await api.post('/api/naver/trend', payload)
@@ -517,6 +580,7 @@ const setDateRange = (from, to) => {
   startYear.value = from.format('YYYY')
   startMonth.value = from.format('MM')
   startDay.value = from.format('DD')
+
   endYear.value = to.format('YYYY')
   endMonth.value = to.format('MM')
   endDay.value = to.format('DD')
@@ -525,21 +589,14 @@ const setDateRange = (from, to) => {
 </script>
 
 
-<style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  text-align: center;
-  color: #2c3e50
-}
 
-* {
-  font-family: 'Nanum Gothic', sans-serif
-}
+<style scoped>
+#app { font-family:Avenir,Helvetica,Arial,sans-serif; text-align:center; color:#2c3e50 }
+* { font-family:'Nanum Gothic',sans-serif }
 
 .banner-paragraph {
   white-space: pre-wrap;
 }
-
 .banner-input, .banner-textarea {
   width: 100%;
   font-size: 1em;
@@ -552,7 +609,6 @@ const setDateRange = (from, to) => {
 .edit-actions {
   margin-top: 6px;
 }
-
 .save-btn, .cancel-btn {
   padding: 6px 12px;
   font-size: 14px;
@@ -560,16 +616,8 @@ const setDateRange = (from, to) => {
   border: none;
   cursor: pointer;
 }
-
-.save-btn {
-  background: #4CAF50;
-  color: white;
-}
-
-.cancel-btn {
-  background: #ccc;
-  color: #333;
-}
+.save-btn { background: #4CAF50; color: white; }
+.cancel-btn { background: #ccc; color: #333; }
 
 .content-below-banner {
   position: relative;
@@ -608,7 +656,6 @@ const setDateRange = (from, to) => {
   justify-content: space-between;
   flex-wrap: wrap;
 }
-
 .option-wrapper > * {
   flex: 1;
   min-width: 180px;
@@ -650,33 +697,27 @@ textarea {
   border: none;
   border-radius: 4px;
 }
-
 .primary-btn:hover {
   background-color: #1565C0;
 }
-
 .negative-btn {
   background-color: #F44336;
   color: white;
   border: none;
   border-radius: 4px;
 }
-
 .negative-btn:hover {
   background-color: #D32F2F;
 }
-
 .secondary-btn {
   background-color: #26A69A;
   color: white;
   border: none;
   border-radius: 4px;
 }
-
 .secondary-btn:hover {
   background-color: #1F8C80;
 }
-
 .dense-btn {
   padding: 14px 12px;
   font-size: 14px;
@@ -691,7 +732,6 @@ textarea {
   box-sizing: border-box;
   position: relative;
 }
-
 .chart-wrapper canvas {
   width: 100% !important;
   max-height: 300px !important;
@@ -700,26 +740,22 @@ textarea {
 .inline-edit-btn {
   margin-left: 6px;
 }
-
 .option-inline {
   display: flex;
   align-items: center;
   gap: 20px;
 }
-
 .option-inline .label {
   min-width: 40px;
   font-weight: bold;
   font-size: 14px;
 }
-
 .date-range-wrapper {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   margin-left: 60px;
 }
-
 .preset-btn {
   height: 36px;
   min-width: 100px;
@@ -733,13 +769,13 @@ textarea {
   align-items: center;
   justify-content: center;
   font-family: 'Roboto', 'Nanum Gothic', sans-serif;
-  font-size: 14px !important; /* ✅ 동일하게 */
-  font-weight: 500 !important; /* ✅ 동일하게 */
+  font-size: 14px !important;       /* ✅ 동일하게 */
+  font-weight: 500 !important;      /* ✅ 동일하게 */
   line-height: 1.4;
 }
 
 .preset-btn .q-btn__content {
-  font-size: 14px !important; /* ✅ 버튼 내부 텍스트 */
+  font-size: 14px !important;       /* ✅ 버튼 내부 텍스트 */
   font-weight: 500 !important;
 }
 
@@ -752,13 +788,16 @@ textarea {
   border-color: #1976d2 !important;
   color: #1976d2 !important;
 }
-
 .age-group .q-option-group--inline {
   flex-wrap: wrap;
 }
-
 .age-group .q-option-group__label {
   min-width: 70px;
   text-align: center;
+}
+.preset-active {
+  background-color: #1976D2 !important;
+  color: white !important;
+  border-color: #1976D2 !important;
 }
 </style>
