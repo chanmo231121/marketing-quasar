@@ -112,9 +112,7 @@
 
         <q-route-tab
           to="/naver-trend"
-          class="custom-tab"
-          v-if="userInfo && userInfo.role === 'DEV'"
-        >
+          class="custom-tab">
           <q-icon name="trending_up" size="20px" class="tab-icon" /> 네이버 트렌드
         </q-route-tab>
 

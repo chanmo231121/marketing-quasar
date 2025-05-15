@@ -398,6 +398,31 @@
             </div>
 
             <div class="detail-item">
+              <strong>📈 트렌드 검색</strong>
+              <q-checkbox
+                v-model="selectedUser.canUseTrendSearch"
+                @update:model-value="v => updateFeatureUsage('trend', v)"
+                label="사용 여부"
+              />
+              <div>{{ selectedUser.canUseTrendSearch ? '✅ 가능' : '❌ 불가' }}</div>
+
+              <div>
+                일일 제한:
+                <q-input
+                  v-model.number="selectedUser.trendSearchLimit"
+                  type="number"
+                  dense
+                  outlined
+                  style="width: 100px"
+                  @blur="updateSearchLimit('trend')"
+                />회
+              </div>
+              <div>오늘 사용: {{ selectedUser?.trendSearchUsed ?? '-' }}회</div>
+              <q-btn dense flat color="negative" label="초기화" size="sm" @click="resetUsage('trend')" />
+            </div>
+
+
+            <div class="detail-item">
               <strong>🔁 연관검색</strong>
               <q-checkbox
                 v-model="selectedUser.canUseRelatedSearch"
@@ -839,12 +864,20 @@ async function resetUsage(type) {
   })
   openUserDetail(selectedUser.value)
 }
+
 async function updateSearchLimit(type) {
   if (!selectedUser.value?.id) return
   let limit = 0
-  if (type === 'single') limit = selectedUser.value.singleSearchLimit
-  else if (type === 'ranking') limit = selectedUser.value.rankingSearchLimit
-  else if (type === 'shopping') limit = selectedUser.value.shoppingSearchLimit // ✅ 쇼핑 추가
+
+  if (type === 'single') {
+    limit = selectedUser.value.singleSearchLimit
+  } else if (type === 'ranking') {
+    limit = selectedUser.value.rankingSearchLimit
+  } else if (type === 'shopping') {
+    limit = selectedUser.value.shoppingSearchLimit
+  } else if (type === 'trend') {
+    limit = selectedUser.value.trendSearchLimit // ✅ 트렌드 추가
+  }
 
   try {
     await api.put(`/api/v1/admin/users/${selectedUser.value.id}/usage-limit`, { type, limit })
@@ -853,7 +886,8 @@ async function updateSearchLimit(type) {
       message: `${{
         single: '단일 검색',
         ranking: '랭킹 검색',
-        shopping: '쇼핑 검색'
+        shopping: '쇼핑 검색',
+        trend: '트렌드 검색'
       }[type]} 제한이 ${limit}회로 설정되었습니다.`
     })
   } catch {
@@ -874,7 +908,10 @@ async function openUserDetail(row) {
     rankingSearchUsed: usage.rankingSearchUsed,
     shoppingSearchLimit: usage.shoppingSearchLimit,    // ✅ 쇼핑 추가
     shoppingSearchUsed: usage.shoppingSearchUsed,      // ✅ 쇼핑 추가
-    canUseShoppingSearch: usage.canUseShoppingSearch    // ✅ 쇼핑 사용 여부 추가
+    canUseShoppingSearch: usage.canUseShoppingSearch,
+    canUseTrendSearch: usage.canUseTrendSearch,
+    trendSearchLimit: usage.trendSearchLimit,
+    trendSearchUsed: usage.trendSearchUsed, // ✅ 쇼핑 사용 여부 추가
   }
 
   customDate.value = null
@@ -896,7 +933,8 @@ async function updateFeatureUsage(feature, enabled) {
       message: `${{
         single: '단일 검색',
         ranking: '랭킹 검색',
-        shopping: '쇼핑 검색',   // ✅ 쇼핑 추가
+        shopping: '쇼핑 검색',
+        trend: '트렌드 검색',
         related: '연관 검색',
         mixer: '키워드 조합기'
       }[feature]} 사용 여부가 저장되었습니다.`

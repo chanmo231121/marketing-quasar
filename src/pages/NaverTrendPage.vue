@@ -421,6 +421,11 @@ const saveBanner = async () => {
 }
 
 const fetchTrendData = async () => {
+  const token = localStorage.getItem('accessToken')
+  if (!token) {
+    showDialog('🔐 로그인이 필요합니다. 로그인 후 다시 시도해주세요 🙏')
+    return
+  }
   const lines = rawKeywords.value.split('\n').map(l => l.trim()).filter(Boolean)
   const keywordGroups = []
 
@@ -430,15 +435,11 @@ const fetchTrendData = async () => {
       const groupName = splitMatch[1].trim()
       const keywordStr = splitMatch[2].trim()
       const keywords = keywordStr.split(',').map(k => k.trim()).filter(Boolean)
-
       if (keywords.length > 20) {
         showDialog(`❌ "${groupName}" 그룹은 연관 키워드를 최대 20개까지만 입력할 수 있습니다.`)
         return
       }
-
-      if (keywords.length > 0) {
-        keywordGroups.push({ groupName, keywords })
-      }
+      if (keywords.length > 0) keywordGroups.push({ groupName, keywords })
     } else {
       keywordGroups.push({ groupName: line, keywords: [line] })
     }
@@ -452,8 +453,9 @@ const fetchTrendData = async () => {
   totalKeywords.value = keywordGroups.length
 
   const batches = []
-  for (let i = 0; i < keywordGroups.length; i += 5)
+  for (let i = 0; i < keywordGroups.length; i += 5) {
     batches.push(keywordGroups.slice(i, i + 5))
+  }
 
   const allResults = []
   try {
@@ -462,31 +464,59 @@ const fetchTrendData = async () => {
         startDate: startDate.value,
         endDate: endDate.value,
         timeUnit: timeUnit.value,
+        isFirstBatch: batch === batches[0],
         keywordGroups: batch,
         device: device.value.includes('pc') && device.value.includes('mo') ? '' :
           device.value.includes('pc') ? 'pc' :
             device.value.includes('mo') ? 'mo' : '',
-        ages: ages.value.length === 0
-          ? ['1','2','3','4','5','6','7','8','9','10','11']
+        ages: ages.value.length === 0 || ages.value.includes('all')
+          ? [] // 🔥 '전체' 선택 시에는 빈 배열로 보내야 네이버 웹과 동일하게 나옴
           : ages.value.filter(v => v !== 'all'),
         gender: gender.value.length === 0 || gender.value.length === 2 ? '' : gender.value[0]
       }
+
+
       const res = await api.post('/api/naver/trend', payload)
+      if (res.data.approvalMessage) {
+        showDialog(res.data.approvalMessage)
+        loading.value = false
+        return
+      }
       allResults.push(...res.data.results)
       currentProgress.value += batch.length
     }
+
     fullResults.value = allResults
-    chartData.value.labels = allResults[0].data.map(item => item.period)
-    chartData.value.datasets = allResults.slice(0, 10).map(group => ({
-      label: group.title,
-      data: group.data.map(d => d.ratio),
-      fill: false,
-      tension: 0.3
-    }))
-    // eslint-disable-next-line no-unused-vars
+
+    // ✅ 전체 라벨 생성 (누락 없이)
+    const start = dayjs(startDate.value)
+    const end = dayjs(endDate.value)
+    const labels = []
+    let current = start.startOf('month')
+
+    while (current.isBefore(end) || current.isSame(end, 'month')) {
+      labels.push(current.format('YYYY-MM-DD'))
+      current = current.add(1, 'month')
+    }
+
+    chartData.value.labels = labels
+
+    // ✅ 각 그룹에 누락된 월을 0으로 채움
+    chartData.value.datasets = allResults.slice(0, 10).map(group => {
+      const ratioMap = Object.fromEntries(group.data.map(d => [d.period, d.ratio]))
+      const data = labels.map(period => Number.isFinite(ratioMap[period]) ? ratioMap[period] : 0)
+
+      return {
+        label: group.title,
+        data,
+        fill: false,
+        tension: 0.3
+      }
+    })
   } catch (e) {
-    showDialog('❌ 데이터 요청 실패')
-  } finally {
+    const message = e?.response?.data?.error || '❌ 데이터 요청 실패'
+    showDialog(message)
+  }finally {
     loading.value = false
   }
 }
@@ -500,7 +530,7 @@ const clearInputs = () => {
 const downloadExcel = () => {
   if (fullResults.value.length === 0) return
 
-  const labels = fullResults.value[0].data.map(item => item.period)
+  const labels = chartData.value.labels
 
   // ✅ 메타 정보 행
   const metaRows = [
@@ -528,16 +558,17 @@ const downloadExcel = () => {
     countRow.push(group.keywords?.length || 1)
   })
 
-  // ✅ 날짜별 데이터
-  const dataRows = labels.map((label, i) => {
+  // ✅ 날짜별 데이터 (누락된 월은 0으로 패딩)
+  const dataRows = labels.map(label => {
     const row = [label]
     fullResults.value.forEach(dataset => {
-      row.push(dataset.data[i].ratio)
+      const ratioMap = Object.fromEntries(dataset.data.map(d => [d.period, d.ratio]))
+      row.push(Number.isFinite(ratioMap[label]) ? ratioMap[label] : 0)
     })
     return row
   })
 
-  // ✅ 통합 시트 작성
+  // ✅ 엑셀 시트 구성
   const finalData = [
     ...metaRows.map(row => [...row]),
     [],

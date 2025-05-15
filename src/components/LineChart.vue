@@ -60,6 +60,11 @@ const renderChart = async () => {
           text: '검색어 트렌드 변화'
         }
       },
+      elements: {
+        line: {
+          spanGaps: true  // ✅ 여기가 핵심
+        }
+      },
       scales: {
         y: {
           beginAtZero: true,
