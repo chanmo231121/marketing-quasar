@@ -219,7 +219,8 @@ export default {
       totalKeywords.value = processedKeywords.length
       limitExceeded = false
 
-      let deviceMismatchShown = false   // ❗ 추가: 기기불일치 알림 뜬 적 있는지 체크
+      let deviceMismatchShown = false   // ❗ 기기불일치 알림 중복 방지
+      let approvalBlocked = false       // ❗ 사용 제한 안내 중복 방지
 
       processedKeywords.forEach((keyword, index) => {
         api.post('/api/naver-ads/search', {
@@ -230,8 +231,18 @@ export default {
             'X-Device-Id': localStorage.getItem(`deviceId_${userInfo.value.id}`) || ''
           }
         }).then(res => {
+          // ✅ 사용 제한 메시지 먼저 처리
+          if (res.data?.approvalMessage && !approvalBlocked) {
+            approvalBlocked = true
+            showDialog(res.data.approvalMessage)
+            failedList.value.push(keyword)
+            adsData.value[keyword] = []
+            return
+          }
+
+          // ✅ 기기 불일치 처리
           if (res.data?.error?.includes('기기 불일치') && !deviceMismatchShown) {
-            deviceMismatchShown = true   // ❗ 최초 1회만
+            deviceMismatchShown = true
             showDialog('⚠️ 기기 불일치. 재승인을 요청해주세요.')
             return
           }
@@ -249,7 +260,7 @@ export default {
           const errorMsg = err?.response?.data?.error || '❌ 처리 중 오류 발생'
 
           if (errorMsg.includes('기기 불일치')) {
-            if (!deviceMismatchShown) {   // ❗ 에러에서도 동일 처리
+            if (!deviceMismatchShown) {
               deviceMismatchShown = true
               showDialog('⚠️ 기기 불일치. 재승인을 요청해주세요.')
             }
@@ -269,7 +280,8 @@ export default {
           if (currentProgress.value === processedKeywords.length) {
             loading.value = false
 
-            if (deviceMismatchShown) return   // ❗ 기기 불일치 발생했으면 여기서 끝
+            if (deviceMismatchShown || approvalBlocked) return
+
             if (Object.values(adsData.value).every(arr => arr.length === 0)) {
               if (!limitExceeded) {
                 showDialog('📭 키워드 데이터가 없습니다.')

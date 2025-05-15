@@ -908,8 +908,6 @@ async function openUserDetail(row) {
     rankingSearchUsed: usage.rankingSearchUsed,
     shoppingSearchLimit: usage.shoppingSearchLimit,    // ✅ 쇼핑 추가
     shoppingSearchUsed: usage.shoppingSearchUsed,      // ✅ 쇼핑 추가
-    canUseShoppingSearch: usage.canUseShoppingSearch,
-    canUseTrendSearch: usage.canUseTrendSearch,
     trendSearchLimit: usage.trendSearchLimit,
     trendSearchUsed: usage.trendSearchUsed, // ✅ 쇼핑 사용 여부 추가
   }
