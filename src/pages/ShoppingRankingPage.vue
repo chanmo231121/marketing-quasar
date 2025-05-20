@@ -363,6 +363,7 @@ export default {
       // 파일 저장
       XLSX.writeFile(wb, 'naver_shopping_data.xlsx')
     }
+    
 
     onMounted(fetchBanner)
 
