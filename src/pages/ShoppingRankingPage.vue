@@ -379,7 +379,7 @@ export default {
   }
 }
 const downloadProgram = () => {
-  window.open('http://maglo6.s3-website.ap-northeast-2.amazonaws.com/Maglo.zip', '_blank')
+  window.open('https://maglo.kr/Maglo.zip', '_blank')
 }
 
 </script>
