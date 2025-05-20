@@ -210,6 +210,7 @@ export default {
     // 기존 코드들...
     const leftDrawerOpen = ref(true)
     const isMiniMode = ref(true)
+    const showContactCard = ref(false)  // ✅ 여기 추가
 
     const toggleDrawer = () => {
       leftDrawerOpen.value = !leftDrawerOpen.value
@@ -332,6 +333,7 @@ export default {
       toggleDrawer,
       isMiniMode,
       requestDeviceApproval,
+      showContactCard
     }
   }
 }
