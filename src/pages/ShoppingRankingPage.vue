@@ -35,7 +35,7 @@
     <header class="main-container">
       <div class="input-container">
         <div class="search-wrapper">
-          <textarea v-model="keywordInput" placeholder="키워드를 입력하세요" rows="4"></textarea>
+          <textarea v-model="keywordInput" placeholder="키워드를 입력하세요 (한 줄에 하나씩 최대 10개까지)" rows="4"></textarea>
           <div class="button-group">
             <button
               @click="processKeywords"
@@ -45,7 +45,9 @@
             >
               <template v-if="loading">
                 <q-spinner color="white" size="20px" />
-                <span style="color: white; font-size: 14px;">검색 중...</span>
+                <span style="color: white; font-size: 14px;">
+      {{ currentProgress }}/{{ totalKeywords }}
+    </span>
               </template>
               <template v-else>
                 검색
@@ -64,6 +66,12 @@
 
       <div class="keyword_list">
         <div class="button-container">
+          <button
+            class="secondary-btn dense-btn"
+            @click="downloadProgram"
+          >
+            프로그램 다운로드
+          </button>
           <button @click="downloadExcel" class="secondary-btn dense-btn excel-download-small-btn">
             엑셀 다운로드(CSV)
           </button>
@@ -203,41 +211,42 @@ export default {
       loading.value = true
       currentProgress.value = 0
       totalKeywords.value = lines.length
+      failedList.value = []
 
-      try {
-        const res = await api.get('/api/shopping', {
-          params: { keywords: lines },
-          paramsSerializer: params => {
-            return new URLSearchParams(params).toString()
+      for (const keyword of lines) {
+        try {
+          const res = await fetch(`http://localhost:5000/crawl?keyword=${encodeURIComponent(keyword)}`)
+          const data = await res.json()
+
+          if (data.error) {
+            failedList.value.push(keyword)
+            continue
           }
-        })
 
-        if (res.data?.approvalMessage) {
-          showDialog(res.data.approvalMessage)
-        } else {
-          // ✅ 기기별로 나누어 저장
-          Object.entries(res.data).forEach(([keyword, items]) => {
-            const pcItems = items.filter(item => item.기기 === 'PC')
-            const moItems = items.filter(item => item.기기 === '모바일')
+          const pcItems = data[keyword]?.pc || []
+          const moItems = data[keyword]?.mobile || []
 
-            adsData.value[keyword] = {
-              pc: pcItems,
-              mobile: moItems
-            }
-          })
-
-          showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
+          adsData.value[keyword] = {
+            pc: pcItems,
+            mobile: moItems
+          }
+        } catch (err) {
+          console.error(err) // 추가
+          failedList.value.push(keyword)
         }
-      } catch (err) {
-        const msg = err.response?.data?.approvalMessage
-          || err.response?.data?.message
-          || '❌ 처리 중 오류 발생'
-        showDialog(msg)
-      } finally {
-        loading.value = false
-        currentProgress.value = lines.length
+
+        currentProgress.value += 1
+      }
+
+      loading.value = false
+
+      if (failedList.value.length > 0) {
+        showDialog(`⚠️ 일부 키워드에서 실패가 발생했습니다.\n(${failedList.value.length}개)`)
+      } else {
+        showDialog('✅ 모든 키워드 데이터를 가져왔습니다.')
       }
     }
+
 
 
     const getNaverAdsData = keyword => {
@@ -364,10 +373,15 @@ export default {
       processKeywords, getNaverAdsData, combineTableData,
       resetAll, clearSearchResults, downloadExcel,
       bannerTitle, bannerContent, isEditing,
-      saveBanner, cancelEdit, startEdit, userInfo
+      saveBanner, cancelEdit, startEdit, userInfo,
+      downloadProgram
     }
   }
 }
+const downloadProgram = () => {
+  window.open('http://maglo6.s3-website.ap-northeast-2.amazonaws.com/Maglo.zip', '_blank')
+}
+
 </script>
 
 
@@ -648,4 +662,6 @@ table td {
   vertical-align: middle;
   margin-left: 6px;
 }
+
+
 </style>
