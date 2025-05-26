@@ -495,16 +495,19 @@ const fetchTrendData = async () => {
 
     let current = start
 
+// ✅ 주간일 경우: 2016-01-04 이전이면 무시
+    if (timeUnit.value === 'week' && current.isBefore(dayjs('2016-01-04'))) {
+      current = dayjs('2016-01-04')
+    }
+
     while (current.isBefore(end) || current.isSame(end, 'day')) {
       labels.push(current.format('YYYY-MM-DD'))
 
-      // 🔽 timeUnit에 따라 일자 단위/주 단위/월 단위로 이동
       current = current.add(
         timeUnit.value === 'date' ? 1 :
-          timeUnit.value === 'week' ? 7 :
-            1, timeUnit.value === 'date' ? 'day' :
-          timeUnit.value === 'week' ? 'day' :
-            'month'
+          timeUnit.value === 'week' ? 7 : 1,
+        timeUnit.value === 'date' ? 'day' :
+          timeUnit.value === 'week' ? 'day' : 'month'
       )
     }
 
