@@ -492,11 +492,20 @@ const fetchTrendData = async () => {
     const start = dayjs(startDate.value)
     const end = dayjs(endDate.value)
     const labels = []
-    let current = start.startOf('month')
 
-    while (current.isBefore(end) || current.isSame(end, 'month')) {
+    let current = start
+
+    while (current.isBefore(end) || current.isSame(end, 'day')) {
       labels.push(current.format('YYYY-MM-DD'))
-      current = current.add(1, 'month')
+
+      // 🔽 timeUnit에 따라 일자 단위/주 단위/월 단위로 이동
+      current = current.add(
+        timeUnit.value === 'date' ? 1 :
+          timeUnit.value === 'week' ? 7 :
+            1, timeUnit.value === 'date' ? 'day' :
+          timeUnit.value === 'week' ? 'day' :
+            'month'
+      )
     }
 
     chartData.value.labels = labels
