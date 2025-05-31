@@ -16,6 +16,7 @@ const routes = [
       { path: 'admin/test', component: () => import('pages/AdminUserManagement.vue') },
       { path: 'shopping-ranking',  component: () => import('pages/ShoppingRankingPage.vue') },
       { path: 'naver-trend', component: () => import('pages/NaverTrendPage.vue') },
+      { path: 'shopping-code', component: () => import('pages/ShoppingCode.vue') },
 
     ]
   },

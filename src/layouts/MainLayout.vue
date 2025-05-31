@@ -116,12 +116,21 @@
           <q-icon name="trending_up" size="20px" class="tab-icon" /> 네이버 트렌드
         </q-route-tab>
 
-        <q-route-tab
+<!--        <q-route-tab
           to="/shopping-ranking"
           class="custom-tab"
           v-if="userInfo && userInfo.role === 'DEV'"
         >
           <q-icon name="shopping_cart" size="20px" class="tab-icon" /> 네이버 쇼핑순위
+        </q-route-tab>-->
+
+
+        <q-route-tab
+          to="/shopping-code"
+          class="custom-tab"
+          v-if="userInfo && userInfo.role === 'DEV'"
+        >
+          <q-icon name="shopping_cart" size="20px" class="tab-icon" /> 네이버 쇼핑 코드
         </q-route-tab>
 
         <q-route-tab to="/notices" class="custom-tab">
