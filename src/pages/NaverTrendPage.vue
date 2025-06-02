@@ -243,11 +243,16 @@ const endDate = computed(() => {
     return `${endYear.value}-${endMonth.value}-${endDay.value}`
   }
 
-  const isCurrentMonth = dayjs().isSame(`${endYear.value}-${endMonth.value}-01`, 'month')
-  const baseDate = dayjs(`${endYear.value}-${endMonth.value}-01`)
-  const lastDay = isCurrentMonth ? dayjs().subtract(1, 'day') : baseDate.endOf('month')
+  // ✅ 월간, 주간: 현재 월이면 전달 말일까지 제한
+  const inputEnd = dayjs(`${endYear.value}-${endMonth.value}-01`)
+  const today = dayjs()
+  const thisMonthStart = today.startOf('month')
 
-  return lastDay.format('YYYY-MM-DD')
+  const end = inputEnd.isSame(thisMonthStart, 'month')
+    ? today.subtract(1, 'month').endOf('month') // ✅ 현재 달이면 전달 말일로 제한
+    : inputEnd.endOf('month')
+
+  return end.format('YYYY-MM-DD')
 })
 
 const rawKeywords = ref('')
@@ -601,22 +606,24 @@ const downloadExcel = () => {
 const selectPreset = (preset) => {
   selectedPreset.value = preset
 
-  const end = dayjs().subtract(1, 'day') // 어제까지가 유효한 종료일
+  const today = dayjs()
+  const prevMonth = today.subtract(1, 'month')   // ✅ 전달
+  const lastDayOfPrevMonth = prevMonth.endOf('month') // ✅ 전달 마지막날
+
   let start
 
   if (preset === 'all') {
-    setDateRange(dayjs('2016-01-01'), end)
+    setDateRange(dayjs('2016-01-01'), lastDayOfPrevMonth)
   } else if (preset === '1m') {
-    start = end.subtract(1, 'month')
-    setDateRange(start, end)
+    start = prevMonth.startOf('month')
+    setDateRange(start, lastDayOfPrevMonth)
   } else if (preset === '3m') {
-    start = end.subtract(3, 'month')
-    setDateRange(start, end)
+    start = prevMonth.subtract(2, 'month').startOf('month')
+    setDateRange(start, lastDayOfPrevMonth)
   } else if (preset === '1y') {
-    start = end.subtract(1, 'year')
-    setDateRange(start, end)
+    start = prevMonth.subtract(11, 'month').startOf('month')
+    setDateRange(start, lastDayOfPrevMonth)
   }
-  // custom은 무시
 }
 
 const setDateRange = (from, to) => {
