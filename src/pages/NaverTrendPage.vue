@@ -519,7 +519,7 @@ const fetchTrendData = async () => {
     chartData.value.labels = labels
 
     // ✅ 각 그룹에 누락된 월을 0으로 채움
-    chartData.value.datasets = allResults.slice(0, 10).map(group => {
+    chartData.value.datasets = allResults.slice(0, 5).map(group => {
       const ratioMap = Object.fromEntries(group.data.map(d => [d.period, d.ratio]))
       const data = labels.map(period => Number.isFinite(ratioMap[period]) ? ratioMap[period] : 0)
 
