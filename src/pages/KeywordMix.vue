@@ -35,13 +35,13 @@
     <q-page class="q-pa-sm" style="display: flex; align-items: flex-start; min-height: 100vh">
       <div class="keyword-mix-container">
         <div class="main-content">
-          <!-- 키워드 입력창 (4개) -->
+          <!-- 키워드 입력창 (5개, 5번은 추가 키워드) -->
           <div class="input-container">
-            <div v-for="i in 4" :key="i" class="keyword-input">
+            <div v-for="i in 5" :key="i" class="keyword-input">
               <q-input
                 filled
                 v-model="keywords[i - 1]"
-                :label="`키워드 ${i}`"
+                :label="i === 5 ? '추가 키워드 (5)' : `키워드 ${i}`"
                 placeholder="한 줄에 하나씩 키워드를 입력해주세요"
                 rows="20"
                 type="textarea"
@@ -125,7 +125,7 @@ import { storeToRefs } from 'pinia'
 
 export default {
   setup() {
-    const keywords = ref(Array(4).fill(''))
+    const keywords = ref(Array(5).fill(''))
     const combinations = ref([])
     const selectedPatterns = ref([])
     const loading = ref(false)
@@ -138,6 +138,25 @@ export default {
 
     const userStore = useUserStore()
     const { userInfo } = storeToRefs(userStore) // 이걸로 바꿔야 Vue template에서 반응해!
+
+    // items에서 size개를 뽑는 순열 전부 생성 (입력 순서 기준이라 결과도 사전순)
+    const permutations = (items, size) => {
+      if (size === 0) return [[]]
+      const result = []
+      items.forEach(item => {
+        permutations(items.filter(other => other !== item), size - 1).forEach(rest => {
+          result.push([item, ...rest])
+        })
+      })
+      return result
+    }
+
+    // 5번(추가 키워드) 칸이 반드시 포함된 size개 순열을 '1+2+5' 형태 문자열로
+    const extraPatterns = (size) =>
+      permutations([1, 2, 3, 4, 5], size)
+        .filter(p => p.includes(5))
+        .map(p => p.join('+'))
+        .sort()
 
     const patternList = [
       { title: '1개 조합', patterns: ['1', '2', '3', '4'] },
@@ -158,7 +177,13 @@ export default {
           '3+1+2+4', '3+1+4+2', '3+2+1+4', '3+2+4+1', '3+4+1+2', '3+4+2+1',
           '4+1+2+3', '4+1+3+2', '4+2+1+3', '4+2+3+1', '4+3+1+2', '4+3+2+1'
         ]
-      }
+      },
+      // 아래는 추가 키워드(5번) 칸이 들어간 조합들 — 순열로 자동 생성
+      { title: '1개 조합 (추가 키워드)', patterns: ['5'] },
+      { title: '2개 조합 (추가 키워드 포함)', patterns: extraPatterns(2) },
+      { title: '3개 조합 (추가 키워드 포함)', patterns: extraPatterns(3) },
+      { title: '4개 조합 (추가 키워드 포함)', patterns: extraPatterns(4) },
+      { title: '5개 조합 (추가 키워드 포함)', patterns: extraPatterns(5) }
     ]
 
     const showDialog = (message) => {
@@ -363,7 +388,7 @@ export default {
 
 .keyword-input {
   flex: 1;
-  min-width: 200px;
+  min-width: 150px;
 }
 
 .controls {
